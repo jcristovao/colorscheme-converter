@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.5.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.6.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -28,6 +28,22 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .br
 .B cscx detect
 .I FILE
+.RB [ \-\-json ]
+.br
+.B cscx browse
+.RB [ \-p
+.IR PATH ]
+.br
+.B cscx preview
+.I FILE
+.RB [ \-\-from
+.IR FORMAT ]
+.RB [ \-\-width
+.IR COLUMNS ]
+.br
+.B cscx list
+.RB [ \-p
+.IR PATH ]
 .RB [ \-\-json ]
 .br
 .B cscx formats
@@ -75,6 +91,21 @@ resembles, most confident first, with a score from 0.0 to 1.0. Useful when
 .B convert
 guesses wrong and you need a name for
 .BR \-\-from .
+.TP
+.B browse
+Open the terminal browser: every scheme found on this machine in a list, a
+preview of the highlighted one beside it, and a key to write it out in another
+format. See
+.B BROWSING
+below.
+.TP
+.BI preview " FILE"
+Print one scheme as colors \(em its palette, a shell session and a syntax
+sample \(em without opening the browser.
+.TP
+.B list
+List every scheme found on this machine, with the format each was identified
+as and where it came from.
 .TP
 .B formats
 List every readable format and writable editor, with file extensions, accepted
@@ -126,12 +157,26 @@ name the format records itself, such as konsole's
 .I Description
 field.
 .TP
+.BI \-p " PATH" "\fR, \fP" \-\-path " PATH"
+Search this file or directory in addition to the usual locations. A directory
+is scanned one level deep. Repeatable. Accepted by
+.B browse
+and
+.BR list .
+.TP
+.BI \-\-width " COLUMNS"
+Width of the
+.B preview
+panels. Defaults to 76.
+.TP
 .B \-\-json
 Emit machine\-readable output.
 .RB For " parse" ,
 the palette; for
 .BR detect ,
-the ranked formats.
+the ranked formats; for
+.BR list ,
+the discovered schemes.
 .TP
 .B \-\-no\-color
 Suppress the color swatches in
@@ -321,6 +366,68 @@ for a light scheme. Drop that directory into
 or
 .I ~/.antigravity/extensions
 and restart the editor.
+.
+.SH BROWSING
+.B cscx browse
+opens a terminal interface over the schemes already installed: the list on the
+left, a preview of the highlighted scheme on the right, and the path it was
+found at along the bottom.
+.PP
+The preview is faithful for terminals and approximate for editors. A terminal
+scheme is sixteen colors plus foreground and background, so the simulated
+shell session shows exactly what the real one will look like. The syntax
+sample is painted with the base16 roles the editor writers assign, which shows
+the mapping rather than any editor's own rendering.
+.SS Keys
+.TP
+.B c
+Copy the highlighted scheme to another format. Pick a target, confirm the
+destination, and it is written. Editing the destination keeps it: changing the
+target afterwards re\-suggests a filename only while the field still holds the
+previous suggestion.
+.TP
+.B /
+Focus the filter. It matches the scheme name and the format name. Escape or
+Enter returns to the list.
+.TP
+.B r
+Rescan. Anything written to
+.I ~/.config/cscx/themes
+appears in the list, because that directory is one of the searched locations.
+.TP
+.B q
+Quit.
+.SS What it does not do
+Browsing never touches a live configuration. Copying writes a new file and
+reports where it went; pointing an application at that file, and reloading the
+application, remain yours to do.
+.SS Searched locations
+The usual theme directories for each supported application \(em among them
+.IR ~/.config/kitty ,
+.IR ~/.config/alacritty/themes ,
+.IR ~/.config/ghostty/themes ,
+.IR ~/.local/share/konsole ,
+.I /usr/share/konsole
+and
+.I ~/.config/foot/themes
+\(em plus anything given with
+.BR \-\-path .
+The search is an explicit table rather than a sweep of the home directory:
+several formats have no distinctive extension, so a broad walk would mean
+sniffing thousands of unrelated files.
+.PP
+.B browse
+needs Textual, which is an optional dependency:
+.PP
+.RS
+.EX
+pip install \(aqcscx[tui]\(aq
+.EE
+.RE
+.PP
+Everything else in
+.B cscx
+has no dependencies at all.
 .
 .SH GAP FILLING
 By default the output carries only what was read, leaving the target program

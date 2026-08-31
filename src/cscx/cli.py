@@ -84,6 +84,29 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument("--name", help="override the scheme name")
 
+    browse = subparsers.add_parser(
+        "browse", help="browse, preview and copy the schemes on this machine"
+    )
+    browse.add_argument(
+        "-p", "--path", type=Path, action="append", default=[], metavar="PATH",
+        help="also search this file or directory; repeatable",
+    )
+
+    preview = subparsers.add_parser("preview", help="show one scheme as colors")
+    preview.add_argument("path", type=Path)
+    preview.add_argument(
+        "-f", "--from", dest="source_format", choices=_format_names(),
+        help="skip detection and parse as this format",
+    )
+    preview.add_argument("--width", type=int, default=76)
+
+    listing = subparsers.add_parser("list", help="list the schemes found on this machine")
+    listing.add_argument(
+        "-p", "--path", type=Path, action="append", default=[], metavar="PATH",
+        help="also search this file or directory; repeatable",
+    )
+    listing.add_argument("--json", action="store_true")
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -100,7 +123,59 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_parse(args)
         case "convert":
             return _cmd_convert(args)
+        case "browse":
+            return _cmd_browse(args)
+        case "preview":
+            return _cmd_preview(args)
+        case "list":
+            return _cmd_list(args)
     return 2
+
+
+def _cmd_browse(args: argparse.Namespace) -> int:
+    try:
+        from .tui import run
+    except ImportError:
+        print(
+            "cscx: browse needs Textual, which is an optional dependency.\n"
+            "      install it with: pip install 'cscx[tui]'",
+            file=sys.stderr,
+        )
+        return 1
+    return run(args.path)
+
+
+def _cmd_preview(args: argparse.Namespace) -> int:
+    from .preview import render
+
+    try:
+        palette = parse_file(args.path, format=args.source_format)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+    print(render(palette, width=args.width))
+    return 0
+
+
+def _cmd_list(args: argparse.Namespace) -> int:
+    from .discovery import discover
+
+    found = discover(args.path)
+    if args.json:
+        print(json.dumps([
+            {"path": str(d.path), "format": d.format,
+             "confidence": round(d.confidence, 3), "origin": d.origin, "name": d.name}
+            for d in found
+        ], indent=2))
+        return 0
+
+    if not found:
+        print("cscx: no schemes found", file=sys.stderr)
+        return 1
+    for entry in found:
+        print(f"{entry.format:18} {entry.name:34} {entry.path}")
+    print(f"\n{len(found)} schemes", file=sys.stderr)
+    return 0
 
 
 def _cmd_formats() -> int:

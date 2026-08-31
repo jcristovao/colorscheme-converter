@@ -38,6 +38,8 @@ decimal `r,g,b` triples, and CSS/X11 color names.
 ## Usage
 
 ```console
+$ cscx browse                                     # find, preview and copy
+
 $ cscx convert ~/.local/share/konsole/Gruvbox.colorscheme --to kitty
 $ cscx convert theme.itermcolors --to ghostty -o ~/.config/ghostty/config
 $ cscx convert kitty.conf --to all -o ./out       # every format at once
@@ -52,6 +54,8 @@ $ cscx detect ~/.config/kitty/kitty.conf
  0.95  kitty
 
 $ cscx parse theme.itermcolors --json
+$ cscx preview theme.itermcolors                  # colours, no browser
+$ cscx list                                       # every scheme on this box
 $ cscx formats
 ```
 
@@ -114,6 +118,47 @@ and guessing one would be worse than leaving it to the terminal.
 Formats without inline comments annotate on the preceding line (ghostty,
 X resources) or not at all (JSON, plists), in which case `cscx` reports the
 derived values on stderr.
+
+## Browsing
+
+`cscx browse` opens a terminal interface over the schemes you already have:
+the list on the left, a preview of the highlighted one on the right, the path
+it was found at along the bottom.
+
+```
+c   copy the highlighted scheme to another format
+/   filter by name or format
+r   rescan
+q   quit
+```
+
+**The preview is faithful for terminals, approximate for editors.** A terminal
+scheme *is* sixteen colors plus foreground and background, so the simulated
+shell session — prompt, `ls`, a dirty `git status`, a failing test, a selection
+— shows exactly what the real thing will look like. The syntax sample is
+painted with the base16 roles the editor writers assign, so it shows the
+mapping rather than any editor's own rendering.
+
+**Copying never touches a live config.** It writes a new file and tells you
+where it went. Pointing an application at that file, and reloading it, are
+still yours to do. Anything written to the default destination
+(`~/.config/cscx/themes`) shows up in the list on the next rescan, because that
+directory is one of the searched locations.
+
+Discovery is an explicit table of theme directories rather than a walk of your
+home directory: several formats have no distinctive extension — ghostty themes
+have none at all — so a broad sweep would mean sniffing thousands of unrelated
+files to turn up a few hundred schemes. On the development machine it finds
+170 schemes in 0.07s. `--path` adds a directory or file to the search.
+
+`browse` is the one part that needs a dependency:
+
+```console
+$ pip install 'cscx[tui]'      # Textual; everything else needs nothing
+```
+
+`cscx preview FILE` prints the same panels without the browser, and
+`cscx list` prints what discovery found.
 
 ## Editors
 
@@ -320,6 +365,12 @@ The editor tests include hostile input: a scheme name carrying a newline used
 to end the header comment early and turn the rest of the file into code. Names
 are flattened now, vim and neovim are made to load a theme built from one, and
 the Helix theme is checked to still parse as TOML.
+
+The TUI is tested too, driven headlessly through Textual's pilot: filtering,
+moving through the list, previewing, and the whole copy-to flow including
+cancellation. That caught a real bug — editing the destination path and then
+changing the target silently discarded the edit, which is how a file lands
+somewhere you did not intend.
 
 The documentation is tested too, rather than trusted to keep up: every format,
 editor, command and CLI option must appear in both the man page and this file,

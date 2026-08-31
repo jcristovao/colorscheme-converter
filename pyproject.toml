@@ -4,12 +4,17 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cscx"
-version = "0.5.0"
+version = "0.6.0"
 description = "Convert terminal color schemes between nine formats, and into vim, neovim, helix, emacs and VS Code themes"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 dependencies = []
+
+# The converter itself has no dependencies. The `browse` TUI needs Textual,
+# so it is opt-in: `pip install cscx[tui]`.
+[project.optional-dependencies]
+tui = ["textual>=0.60"]
 
 [project.scripts]
 cscx = "cscx.cli:main"
