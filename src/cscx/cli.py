@@ -107,6 +107,51 @@ def build_parser() -> argparse.ArgumentParser:
     )
     listing.add_argument("--json", action="store_true")
 
+    activate = subparsers.add_parser(
+        "activate", help="install a scheme into an application's configuration"
+    )
+    activate.add_argument("path", type=Path, help="scheme to install")
+    activate.add_argument(
+        "-a", "--for", dest="app", required=True, metavar="APP",
+        help="application to configure",
+    )
+    activate.add_argument(
+        "-f", "--from", dest="source_format", choices=_format_names(),
+        help="skip detection and parse as this format",
+    )
+    activate.add_argument("--name", help="override the theme name")
+    activate.add_argument(
+        "--profile", type=Path,
+        help="konsole only: the .profile to point at the scheme",
+    )
+    activate.add_argument(
+        "-n", "--dry-run", action="store_true",
+        help="print what would change and stop",
+    )
+    activate.add_argument(
+        "-y", "--yes", action="store_true", help="do not ask for confirmation",
+    )
+    activate.add_argument(
+        "--no-backup", action="store_true",
+        help="do not copy existing files aside first",
+    )
+    activate.add_argument(
+        "--no-validate", action="store_true",
+        help="skip asking the application whether it accepts the result",
+    )
+
+    live = subparsers.add_parser(
+        "live", help="recolour the running terminal, without changing any config"
+    )
+    live.add_argument("path", type=Path, nargs="?", help="scheme to apply")
+    live.add_argument(
+        "-f", "--from", dest="source_format", choices=_format_names(),
+        help="skip detection and parse as this format",
+    )
+    live.add_argument(
+        "--reset", action="store_true", help="restore the terminal's own colours",
+    )
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -129,7 +174,87 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_preview(args)
         case "list":
             return _cmd_list(args)
+        case "activate":
+            return _cmd_activate(args)
+        case "live":
+            return _cmd_live(args)
     return 2
+
+
+def _cmd_activate(args: argparse.Namespace) -> int:
+    from .activation import ActivationError, apply_plan, plan
+
+    try:
+        palette = parse_file(args.path, format=args.source_format)
+        proposed = plan(palette, args.app, name=args.name, profile=args.profile)
+    except (OSError, ValueError, KeyError, ActivationError) as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    print(proposed.describe())
+
+    if args.dry_run:
+        print("\n(dry run; nothing was changed)", file=sys.stderr)
+        return 0
+
+    edits = [step for step in proposed.steps if step.edits_existing]
+    if edits and not args.yes and sys.stdin.isatty():
+        # Only existing files are worth stopping for; creating a theme file
+        # alongside is not the part anyone needs to think about.
+        listed = ", ".join(str(step.path) for step in edits)
+        answer = input(f"\nedit {listed}? [y/N] ").strip().lower()
+        if answer not in {"y", "yes"}:
+            print("cscx: nothing was changed", file=sys.stderr)
+            return 1
+
+    try:
+        backups = apply_plan(
+            proposed, backup=not args.no_backup, validate=not args.no_validate
+        )
+    except ActivationError as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        print("cscx: nothing was changed; every file was restored", file=sys.stderr)
+        return 1
+    except OSError as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    for backup in backups:
+        print(f"backed up {backup}", file=sys.stderr)
+    if proposed.reload:
+        print(f"reload with: {proposed.reload}", file=sys.stderr)
+    return 0
+
+
+def _cmd_live(args: argparse.Namespace) -> int:
+    from . import live
+
+    if args.reset:
+        if not live.reset():
+            print("cscx: no terminal to write to", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.path is None:
+        print("cscx: live needs a scheme, or --reset", file=sys.stderr)
+        return 2
+
+    try:
+        palette = parse_file(args.path, format=args.source_format)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    if not live.is_supported():
+        print("cscx: no terminal here to recolour", file=sys.stderr)
+        return 1
+    if not live.apply(palette):
+        print("cscx: could not write to the terminal", file=sys.stderr)
+        return 1
+
+    print("cscx: applied to this terminal; `cscx live --reset` restores it",
+          file=sys.stderr)
+    return 0
 
 
 def _cmd_browse(args: argparse.Namespace) -> int:

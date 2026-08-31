@@ -38,7 +38,9 @@ decimal `r,g,b` triples, and CSS/X11 color names.
 ## Usage
 
 ```console
-$ cscx browse                                     # find, preview and copy
+$ cscx browse                                     # find, preview, copy, activate
+$ cscx live theme.conf                            # recolour this terminal now
+$ cscx activate theme.conf --for kitty --dry-run  # see what would change
 
 $ cscx convert ~/.local/share/konsole/Gruvbox.colorscheme --to kitty
 $ cscx convert theme.itermcolors --to ghostty -o ~/.config/ghostty/config
@@ -126,9 +128,9 @@ the list on the left, a preview of the highlighted one on the right, the path
 it was found at along the bottom.
 
 ```
-c   copy the highlighted scheme to another format
-/   filter by name or format
-r   rescan
+a   apply to this terminal now      A   activate for an application
+u   undo the live preview           c   copy to another format
+/   filter by name or format        r   rescan
 q   quit
 ```
 
@@ -140,10 +142,10 @@ painted with the base16 roles the editor writers assign, so it shows the
 mapping rather than any editor's own rendering.
 
 **Copying never touches a live config.** It writes a new file and tells you
-where it went. Pointing an application at that file, and reloading it, are
-still yours to do. Anything written to the default destination
+where it went. Anything written to the default destination
 (`~/.config/cscx/themes`) shows up in the list on the next rescan, because that
-directory is one of the searched locations.
+directory is one of the searched locations. `A` does change configuration —
+see below — and shows you the plan first.
 
 Discovery is an explicit table of theme directories rather than a walk of your
 home directory: several formats have no distinctive extension — ghostty themes
@@ -159,6 +161,70 @@ $ pip install 'cscx[tui]'      # Textual; everything else needs nothing
 
 `cscx preview FILE` prints the same panels without the browser, and
 `cscx list` prints what discovery found.
+
+## Live preview
+
+`cscx live FILE` recolours the running terminal immediately. No file changes,
+nothing to enable first, and `cscx live --reset` puts it back. In the browser,
+`a` applies and `u` undoes; quitting restores your colors automatically.
+
+It uses OSC escape sequences rather than any one terminal's remote-control
+protocol. That was the deciding factor: kitty's `@ set-colors` is excellent but
+needs `allow_remote_control` turned on and only works for kitty, whereas OSC
+works in every terminal here with nothing configured. Sequences go to
+`/dev/tty` rather than stdout, so they survive a pipe and don't disturb a
+full-screen program, and inside `tmux` they're wrapped in its passthrough form
+— tmux swallows them otherwise.
+
+## Activation
+
+`cscx activate FILE --for APP` installs a scheme so it persists. This is the
+only command that edits a file you didn't ask it to create, so it runs in
+stages you can inspect or undo:
+
+```
+plan  →  back up  →  apply  →  validate  →  roll back on failure
+```
+
+```console
+$ cscx activate Gruvbox.colorscheme --for kitty --dry-run
+kitty:
+  create  ~/.config/kitty/themes/gruvbox.conf  (the theme itself)
+  edit    ~/.config/kitty/kitty.conf           (include the theme)
+  reload:  kitten @ load-config, or ctrl+shift+f5 in kitty
+```
+
+`--dry-run` stops there. Otherwise the plan is printed anyway and any existing
+file is confirmed before being touched, unless `--yes`.
+
+**Backups are never overwritten.** Existing files are copied to
+`NAME.cscx-TIMESTAMP.bak`, and because the timestamp is only second-resolution,
+a collision gets a counter — otherwise activating twice quickly would destroy
+the copy holding your untouched original.
+
+**Edits are idempotent.** A marker comment anchors the one line cscx owns, so
+activating again rewrites that line instead of appending a second include.
+Alacritty is the exception: its `import` has to sit inside `[general]`, and a
+second `[general]` would be *invalid TOML* rather than merely untidy, so that
+file is edited structurally.
+
+**The application gets a veto.** Where the format can be machine-checked, the
+result is validated by the real thing — alacritty's TOML is re-parsed,
+`foot --check-config` and kitty's own loader run when installed. If the app
+would reject it, every backup is restored, every created file removed, and the
+command fails having changed nothing.
+
+| Application | What activation does |
+|---|---|
+| `kitty`, `alacritty`, `foot`, `ghostty` | theme file + config edit |
+| `konsole` | scheme file; `--profile` also selects it |
+| `vim`, `neovim`, `helix`, `emacs` | theme file only |
+| `vscode`, `cursor`, `antigravity` | the wrapping extension, generated |
+
+**Editors never get their init file edited.** Choosing a colorscheme should
+stay a deliberate act, so cscx places the file and prints the one line to run
+(`:colorscheme gruvbox`). konsole installs the scheme but can't select it
+without knowing your profile, and says so rather than guessing.
 
 ## Editors
 
@@ -346,7 +412,7 @@ substitute is made explicit in each case:
 $ python3 -m pytest
 ```
 
-684 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
+The fixture set is one scheme — Gruvbox, with all 16 slots distinct
 so an off-by-eight in a bright/normal mapping cannot pass — written out in all
 ten fixture formats. Every parser must produce an identical palette from it,
 and every emitter must round-trip it through every parser.
@@ -371,6 +437,16 @@ moving through the list, previewing, and the whole copy-to flow including
 cancellation. That caught a real bug — editing the destination path and then
 changing the target silently discarded the edit, which is how a file lands
 somewhere you did not intend.
+
+Activation is tested entirely against a sandboxed `HOME`, so a wrongly built
+path cannot reach a real config even in a failing test. The rollback path is
+tested by feeding it a plan that produces invalid TOML and asserting the
+original comes back byte-for-byte.
+
+The suite covers every layer: parsing, emitting, the editor mapping, colour
+maths, discovery, preview geometry, activation, and the TUI driven headlessly.
+It is not a number worth quoting here — it drifts every commit — so run
+`pytest -q` for the current figure.
 
 The documentation is tested too, rather than trusted to keep up: every format,
 editor, command and CLI option must appear in both the man page and this file,

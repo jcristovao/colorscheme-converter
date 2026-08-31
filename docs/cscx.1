@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.6.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.7.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -29,6 +29,23 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .B cscx detect
 .I FILE
 .RB [ \-\-json ]
+.br
+.B cscx activate
+.I FILE
+.B \-\-for
+.I APP
+.RB [ \-\-dry\-run ]
+.RB [ \-\-yes ]
+.RB [ \-\-name
+.IR NAME ]
+.RB [ \-\-profile
+.IR PATH ]
+.RB [ \-\-no\-backup ]
+.RB [ \-\-no\-validate ]
+.br
+.B cscx live
+.RI [ FILE ]
+.RB [ \-\-reset ]
 .br
 .B cscx browse
 .RB [ \-p
@@ -91,6 +108,20 @@ resembles, most confident first, with a score from 0.0 to 1.0. Useful when
 .B convert
 guesses wrong and you need a name for
 .BR \-\-from .
+.TP
+.BI activate " FILE"
+Install a scheme into an application's configuration so it persists. Writes
+the theme, points the application's config at it, and reports how to reload.
+See
+.B ACTIVATION
+below; this is the only command that edits a file you did not ask it to
+create.
+.TP
+.BI live " \fR[\fPFILE\fR]\fP"
+Recolour the running terminal immediately, without changing any
+configuration. The change lasts until
+.B \-\-reset
+or until the terminal exits.
 .TP
 .B browse
 Open the terminal browser: every scheme found on this machine in a list, a
@@ -156,6 +187,35 @@ Override the scheme name. Otherwise it comes from the source file, or from a
 name the format records itself, such as konsole's
 .I Description
 field.
+.TP
+.BI \-a " APP" "\fR, \fP" \-\-for " APP"
+The application to configure. Required by
+.BR activate .
+.TP
+.BR \-n ", " \-\-dry\-run
+Print what would change and stop. Nothing is written.
+.TP
+.BR \-y ", " \-\-yes
+Do not ask before editing an existing file.
+.TP
+.BI \-\-profile " PATH"
+konsole only. The
+.I .profile
+to point at the installed scheme. Without it the scheme is installed but not
+selected, and
+.B cscx
+says so.
+.TP
+.B \-\-no\-backup
+Do not copy existing files aside before editing them. Rolling back a rejected
+result then becomes impossible.
+.TP
+.B \-\-reset
+.B live
+only. Restore the terminal's own configured colors.
+.TP
+.B \-\-no\-validate
+Skip asking the application whether it accepts the result.
 .TP
 .BI \-p " PATH" "\fR, \fP" \-\-path " PATH"
 Search this file or directory in addition to the usual locations. A directory
@@ -380,6 +440,18 @@ sample is painted with the base16 roles the editor writers assign, which shows
 the mapping rather than any editor's own rendering.
 .SS Keys
 .TP
+.B a
+Apply the highlighted scheme to the running terminal. Nothing is written to
+disk. Quitting restores the terminal's own colors, as does
+.BR u .
+.TP
+.B u
+Undo a live preview.
+.TP
+.B A
+Activate the highlighted scheme for an application. The plan is shown before
+anything happens; Enter applies it, Escape cancels.
+.TP
 .B c
 Copy the highlighted scheme to another format. Pick a target, confirm the
 destination, and it is written. Editing the destination keeps it: changing the
@@ -428,6 +500,87 @@ pip install \(aqcscx[tui]\(aq
 Everything else in
 .B cscx
 has no dependencies at all.
+.
+.SH ACTIVATION
+.B cscx activate
+is the only command that edits configuration you did not ask it to create, so
+it works in stages that can each be inspected or undone:
+.PP
+.RS
+plan \(-> back up \(-> apply \(-> validate \(-> roll back on failure
+.RE
+.PP
+.B \-\-dry\-run
+prints the plan and stops. Without it the plan is printed anyway, and any file
+that already exists is confirmed before being touched unless
+.B \-\-yes
+is given.
+.PP
+Existing files are copied aside first, to
+.IR NAME .cscx\- TIMESTAMP .bak\fR.
+A backup is never overwritten: two activations inside the same second get
+distinct names, because the older copy is the one holding the untouched
+original.
+.PP
+Edits are anchored to a marker comment, so activating a second time rewrites
+one line rather than appending another include. Alacritty is the exception:
+its
+.I import
+must sit inside the
+.I [general]
+table, and a second
+.I [general]
+would be invalid TOML rather than merely untidy, so that file is edited
+structurally instead.
+.PP
+Where the format can be machine\-checked the result is validated by the
+application itself \(em alacritty's TOML is re\-parsed,
+.B foot \-\-check\-config
+and kitty's own loader are run when those programs are installed. If the
+application would have rejected the result, every backup is restored, every
+newly created file is removed, and the command fails without having changed
+anything.
+.SS Applications
+.B kitty ,
+.B alacritty ,
+.B foot ,
+.B ghostty
+and
+.B konsole
+get a theme file plus a config edit.
+.PP
+Editors only ever get a file placed where they already look. Nothing is added
+to your
+.IR init.vim ,
+.I init.lua
+or
+.IR init.el ,
+because choosing a colorscheme should stay a deliberate act; the command
+prints the one line to run. For VS Code and its forks the wrapping extension
+directory is generated too, since a theme document alone is not loadable.
+.PP
+konsole installs the scheme but cannot select it without knowing which profile
+you use; pass
+.B \-\-profile
+or pick the scheme in its settings.
+.
+.SH LIVE PREVIEW
+.B cscx live
+sets the terminal's colour registers with OSC escape sequences. It changes no
+file, needs nothing enabled first, and every terminal this project targets
+understands it \(em unlike a remote\-control protocol, which is per\-terminal
+and off by default.
+.PP
+The sequences go to
+.I /dev/tty
+rather than standard output, so they work when output is piped and do not
+disturb a full\-screen program that owns the terminal. Inside
+.B tmux
+they are wrapped in its passthrough form, which tmux would otherwise swallow.
+.PP
+.B cscx live \-\-reset
+restores the terminal's configured colors. The browser does this for you when
+you quit.
 .
 .SH GAP FILLING
 By default the output carries only what was read, leaving the target program

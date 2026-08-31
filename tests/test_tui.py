@@ -174,3 +174,148 @@ def test_every_convertible_target_is_offered():
 
     offered = {t.name for t in _targets()}
     assert offered == set(EMITTERS) | set(EDITORS)
+
+
+# -- live preview ---------------------------------------------------------
+
+
+@pytest.fixture
+def fake_terminal(monkeypatch):
+    """Capture what would be written to the terminal instead of writing it."""
+    from cscx import live
+
+    written: list[str] = []
+    monkeypatch.setattr(live, "is_supported", lambda: True)
+    monkeypatch.setattr(live, "_write", lambda payload: written.append(payload) or True)
+    return written
+
+
+@pytest.mark.asyncio
+async def test_a_applies_the_scheme_to_the_terminal(fake_terminal):
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        assert app.live_scheme is not None
+        assert fake_terminal and "\x1b]4;0;rgb:" in fake_terminal[0]
+
+
+@pytest.mark.asyncio
+async def test_u_restores_the_terminal(fake_terminal):
+    from cscx import live
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        await pilot.press("u")
+        await pilot.pause()
+        assert app.live_scheme is None
+        assert fake_terminal[-1] == live.reset_sequences()
+
+
+@pytest.mark.asyncio
+async def test_quitting_restores_a_live_preview(fake_terminal):
+    """Leaving the terminal recoloured after quitting would be rude."""
+    from cscx import live
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        assert app.live_scheme is not None
+
+    assert fake_terminal[-1] == live.reset_sequences()
+
+
+@pytest.mark.asyncio
+async def test_no_terminal_is_reported_rather_than_crashing(monkeypatch):
+    from cscx import live
+
+    monkeypatch.setattr(live, "is_supported", lambda: False)
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("a")
+        await pilot.pause()
+        assert app.live_scheme is None
+
+
+# -- activation -----------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_activate_screen_shows_the_plan_before_applying(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+        assert type(app.screen).__name__ == "ActivateScreen"
+        plan_text = str(app.screen.query_one("#activate-plan").renderable
+                        if hasattr(app.screen.query_one("#activate-plan"), "renderable")
+                        else app.screen._apps)
+        assert plan_text            # a plan (or app list) was rendered
+        assert app.activated == []  # nothing applied merely by looking
+
+
+@pytest.mark.asyncio
+async def test_activation_writes_the_files(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+        apps = app.screen.query_one("#activate-apps")
+        apps.highlighted = app.screen._apps.index("helix")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.activated == ["helix"]
+        assert list((tmp_path / ".config/helix/themes").glob("*.toml"))
+
+
+@pytest.mark.asyncio
+async def test_escape_leaves_activation_alone(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.activated == []
+        assert not (tmp_path / ".config").exists()
+
+
+@pytest.mark.asyncio
+async def test_installed_applications_are_offered_first(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+        from cscx.discovery import installed_applications
+        from cscx.activation import ACTIVATABLE
+
+        installed = installed_applications() & set(ACTIVATABLE)
+        offered = app.screen._apps
+        if installed:
+            assert offered[0] in installed

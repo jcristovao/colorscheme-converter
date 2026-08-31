@@ -23,8 +23,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
-from . import __version__
-from .discovery import Discovered, SearchLocation, discover
+from . import __version__, live
+from .activation import ACTIVATABLE, ActivationError, apply_plan, plan
+from .discovery import Discovered, SearchLocation, discover, installed_applications
 from .editors import EDITORS, EditorPaletteError, get_editor
 from .emitters import EMITTERS, get_emitter
 from .formats import parse_file
@@ -118,6 +119,56 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
         self.dismiss(None)
 
 
+class ActivateScreen(ModalScreen[str | None]):
+    """Choose an application, see exactly what would change, then confirm."""
+
+    BINDINGS = [Binding("escape", "dismiss_screen", "Cancel")]
+
+    def __init__(self, palette: Palette, installed: set[str]) -> None:
+        super().__init__()
+        self._palette = palette
+        # Applications actually present come first: activating for something
+        # that is not installed is legal but rarely what anyone means.
+        self._apps = sorted(ACTIVATABLE, key=lambda a: (a not in installed, a))
+        self._installed = installed
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="activate-dialog"):
+            yield Label("Activate for:", id="activate-title")
+            yield OptionList(
+                *(
+                    Option(f"{app}{'' if app in self._installed else '   (not installed)'}",
+                           id=app)
+                    for app in self._apps
+                ),
+                id="activate-apps",
+            )
+            yield Static("", id="activate-plan")
+            yield Label("enter applies · esc cancels", classes="dim")
+
+    def on_mount(self) -> None:
+        self.query_one("#activate-apps", OptionList).focus()
+        self._show_plan(self._apps[0])
+
+    def _show_plan(self, app: str) -> None:
+        try:
+            described = plan(self._palette, app).describe()
+        except ActivationError as exc:
+            described = str(exc)
+        self.query_one("#activate-plan", Static).update(described)
+
+    @on(OptionList.OptionHighlighted, "#activate-apps")
+    def _highlight(self, event: OptionList.OptionHighlighted) -> None:
+        self._show_plan(self._apps[event.option_index])
+
+    @on(OptionList.OptionSelected, "#activate-apps")
+    def _select(self, event: OptionList.OptionSelected) -> None:
+        self.dismiss(self._apps[event.option_index])
+
+    def action_dismiss_screen(self) -> None:
+        self.dismiss(None)
+
+
 class BrowseApp(App[None]):
     """Browse, preview and copy the schemes on this machine."""
 
@@ -135,12 +186,21 @@ class BrowseApp(App[None]):
         background: $surface; border: thick $primary;
     }
     #copy-targets { height: 12; }
+    #activate-dialog {
+        width: 88; height: auto; padding: 1 2;
+        background: $surface; border: thick $warning;
+    }
+    #activate-apps { height: 10; }
+    #activate-plan { height: auto; padding: 1 0 0 0; color: $text-muted; }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("slash", "focus_filter", "Filter"),
         Binding("c", "copy_to", "Copy to"),
+        Binding("a", "live_apply", "Live"),
+        Binding("u", "live_reset", "Undo live"),
+        Binding("A", "activate", "Activate"),
         Binding("r", "rescan", "Rescan"),
         Binding("escape", "focus_list", "Back to list", show=False),
     ]
@@ -164,6 +224,10 @@ class BrowseApp(App[None]):
         self.preview_text: str = ""
         #: Destinations written this session, most recent last.
         self.written: list[Path] = []
+        #: Set while the terminal is showing a scheme that is not its own.
+        self.live_scheme: str | None = None
+        #: Applications activated this session, for tests and for the log.
+        self.activated: list[str] = []
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -270,6 +334,64 @@ class BrowseApp(App[None]):
         except Exception:
             name = found.name
         self.push_screen(CopyToScreen(name), self._write_copy)
+
+    def action_live_apply(self) -> None:
+        """Recolour the real terminal, so the scheme can be judged in use."""
+        if not (found := self.current()):
+            return
+        try:
+            palette = self._palette(found.path)
+        except Exception as exc:
+            self.notify(str(exc), title="could not read", severity="error")
+            return
+
+        if not live.is_supported() or not live.apply(palette):
+            self.notify("no terminal here to recolour", severity="warning")
+            return
+        self.live_scheme = found.name
+        self.notify(f"{found.name} — press u to restore", title="applied live")
+
+    def action_live_reset(self) -> None:
+        if self.live_scheme is None:
+            return
+        live.reset()
+        self.live_scheme = None
+        self.notify("terminal colours restored")
+
+    def action_activate(self) -> None:
+        if not (found := self.current()):
+            return
+        try:
+            palette = self._palette(found.path)
+        except Exception as exc:
+            self.notify(str(exc), title="could not read", severity="error")
+            return
+        self.push_screen(
+            ActivateScreen(palette, installed_applications()),
+            lambda app: self._activate(app, palette),
+        )
+
+    def _activate(self, app: str | None, palette: Palette) -> None:
+        if app is None:
+            return
+        try:
+            proposed = plan(palette, app)
+            backups = apply_plan(proposed)
+        except (ActivationError, OSError) as exc:
+            self.notify(str(exc), title=f"{app} unchanged", severity="error")
+            return
+
+        self.activated.append(app)
+        detail = proposed.reload or "done"
+        if backups:
+            detail += f"  ·  backed up {len(backups)} file(s)"
+        self.notify(detail, title=f"activated for {app}")
+
+    def on_unmount(self) -> None:
+        """Never leave the terminal wearing a scheme the user only previewed."""
+        if self.live_scheme is not None:
+            live.reset()
+            self.live_scheme = None
 
     def current(self) -> Discovered | None:
         options = self.query_one("#schemes", OptionList)
