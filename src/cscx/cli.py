@@ -152,6 +152,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--reset", action="store_true", help="restore the terminal's own colours",
     )
 
+    active = subparsers.add_parser(
+        "active", help="show which scheme each application is currently using"
+    )
+    active.add_argument(
+        "--no-editors", action="store_true",
+        help="skip the editors, which have to be started to be asked",
+    )
+    active.add_argument("--json", action="store_true")
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -178,7 +187,42 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_activate(args)
         case "live":
             return _cmd_live(args)
+        case "active":
+            return _cmd_active(args)
     return 2
+
+
+def _cmd_active(args: argparse.Namespace) -> int:
+    from .active import detect, palette_of
+    from .preview import swatch_strip
+
+    found = detect(editors=not args.no_editors)
+    if args.json:
+        print(json.dumps([
+            {"app": a.app, "kind": a.kind, "scheme": a.name,
+             "path": str(a.path) if a.path else None,
+             "source": a.source, "note": a.note or None}
+            for a in found
+        ], indent=2))
+        return 0
+
+    if not found:
+        print("cscx: nothing found", file=sys.stderr)
+        return 1
+
+    show_colors = sys.stdout.isatty()
+    for entry in found:
+        swatch = ""
+        if show_colors and (palette := palette_of(entry)) is not None:
+            swatch = swatch_strip(palette, width=1) + "  "
+        print(f"{entry.app:12} {swatch}{entry.display:34} {entry.source}")
+        if entry.note:
+            print(f"{'':12} note: {entry.note}")
+
+    if any(e.kind == "editor" and e.name for e in found):
+        print("\ncscx: editor schemes are names only; an editor theme cannot be "
+              "read back into a palette", file=sys.stderr)
+    return 0
 
 
 def _cmd_activate(args: argparse.Namespace) -> int:

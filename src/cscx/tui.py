@@ -24,6 +24,7 @@ from textual.widgets import Footer, Header, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from . import __version__, live
+from .active import detect as detect_active
 from .activation import ACTIVATABLE, ActivationError, apply_plan, plan
 from .discovery import Discovered, SearchLocation, discover, installed_applications
 from .editors import EDITORS, EditorPaletteError, get_editor
@@ -228,6 +229,8 @@ class BrowseApp(App[None]):
         self.live_scheme: str | None = None
         #: Applications activated this session, for tests and for the log.
         self.activated: list[str] = []
+        #: Resolved path -> the applications currently using it.
+        self.in_use: dict[Path, list[str]] = {}
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -252,8 +255,24 @@ class BrowseApp(App[None]):
     def action_rescan(self) -> None:
         self._all = discover(self._extra, locations=self._locations)
         self._cache.clear()
+        self._refresh_in_use()
         self._apply_filter(self.query_one("#filter", Input).value)
         self.sub_title = f"{len(self._all)} schemes"
+
+    def _refresh_in_use(self) -> None:
+        """Which discovered scheme each terminal is currently using.
+
+        Editors are skipped: asking them means starting vim and neovim, and
+        they answer with a name rather than a file, so there is nothing here
+        to match a discovered path against.
+        """
+        self.in_use = {}
+        try:
+            for entry in detect_active(editors=False):
+                if entry.path is not None:
+                    self.in_use.setdefault(entry.path.resolve(), []).append(entry.app)
+        except Exception:
+            self.in_use = {}
 
     def _apply_filter(self, needle: str) -> None:
         needle = needle.strip().lower()
@@ -279,6 +298,8 @@ class BrowseApp(App[None]):
             row = Text(" " * 16, style="dim")
         row.append(f" {found.name}", style="bold")
         row.append(f"  {found.format}", style="dim")
+        if users := self.in_use.get(found.path):
+            row.append(f"  ● in use by {', '.join(users)}", style="bold green")
         return row
 
     def _palette(self, path: Path) -> Palette:

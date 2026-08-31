@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.7.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.8.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -61,6 +61,10 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .B cscx list
 .RB [ \-p
 .IR PATH ]
+.RB [ \-\-json ]
+.br
+.B cscx active
+.RB [ \-\-no\-editors ]
 .RB [ \-\-json ]
 .br
 .B cscx formats
@@ -137,6 +141,11 @@ sample \(em without opening the browser.
 .B list
 List every scheme found on this machine, with the format each was identified
 as and where it came from.
+.TP
+.B active
+Show which scheme each application is currently using. See
+.B DETECTING THE ACTIVE SCHEME
+below.
 .TP
 .B formats
 List every readable format and writable editor, with file extensions, accepted
@@ -223,6 +232,10 @@ is scanned one level deep. Repeatable. Accepted by
 .B browse
 and
 .BR list .
+.TP
+.B \-\-no\-editors
+.B active
+only. Skip the editors, which have to be started in order to be asked.
 .TP
 .BI \-\-width " COLUMNS"
 Width of the
@@ -581,6 +594,41 @@ they are wrapped in its passthrough form, which tmux would otherwise swallow.
 .B cscx live \-\-reset
 restores the terminal's configured colors. The browser does this for you when
 you quit.
+.
+.SH DETECTING THE ACTIVE SCHEME
+.B cscx active
+answers two different questions that share a name.
+.PP
+Terminals have no way to be asked, so their configuration is read and the
+answer resolved to an actual file \(em which means it can be parsed and shown
+as colors. Order is what decides: kitty and foot apply directives top to
+bottom, so a configuration holding both inline colors and an
+.I include
+has a winner that a plain search for
+.I include
+reports wrongly.
+.B cscx
+follows the ordering and says which one wins.
+.PP
+Editors are asked directly, because an init file can set a colorscheme
+conditionally or through a plugin and only the editor knows the outcome. What
+comes back is a name and nothing more: an editor theme cannot be read back
+into sixteen ANSI slots, which is the same reason editors are written but
+never read elsewhere in
+.BR cscx .
+Starting vim and neovim is the slow part, so
+.B \-\-no\-editors
+skips it.
+.PP
+Some answers are genuinely ambiguous and are reported that way rather than
+guessed. konsole stores its scheme per profile, so a machine with several
+profiles has several answers, and unless
+.I konsolerc
+names a default there is no way to know which applies.
+.PP
+In
+.B cscx browse
+the schemes a terminal is currently using are marked in the list.
 .
 .SH GAP FILLING
 By default the output carries only what was read, leaving the target program

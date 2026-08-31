@@ -58,6 +58,7 @@ $ cscx detect ~/.config/kitty/kitty.conf
 $ cscx parse theme.itermcolors --json
 $ cscx preview theme.itermcolors                  # colours, no browser
 $ cscx list                                       # every scheme on this box
+$ cscx active                                     # what each app is using now
 $ cscx formats
 ```
 
@@ -161,6 +162,43 @@ $ pip install 'cscx[tui]'      # Textual; everything else needs nothing
 
 `cscx preview FILE` prints the same panels without the browser, and
 `cscx list` prints what discovery found.
+
+## What is each application using?
+
+```console
+$ cscx active
+kitty        ▁▁▁▁▁▁▁▁  autumn                        include in kitty.conf
+alacritty    ▁▁▁▁▁▁▁▁  gruvbox_material_medium_dark  general.import
+foot         ▁▁▁▁▁▁▁▁  gruvbox_material_hard_dark    last include in foot.ini
+konsole      ▁▁▁▁▁▁▁▁  148925-bl1nk                  profile Alternativo
+             note: konsolerc names no default profile, so which one applies
+                   depends on how konsole was started
+vim                    (default)                     asked vim
+neovim                 gruvbox-material              asked nvim
+vscode                 Kimbie Dark                   Code - OSS/User/settings.json
+```
+
+Two different questions wearing one name.
+
+**Terminals are read, and resolve to a file** — so the answer can be parsed and
+shown as colors. Getting this right needs more than a grep: kitty and foot
+apply directives top to bottom, so a config with both inline colors *and* an
+`include` has a winner that searching for `include` reports wrongly. cscx
+follows the ordering and says which one wins.
+
+**Editors are asked directly.** An init file can set a colorscheme
+conditionally or through a plugin, and only the editor knows how that turned
+out — `nvim --headless -c 'lua print(vim.g.colors_name)'` is authoritative
+where grepping is guesswork. The answer is a *name only*: an editor theme
+can't be read back into 16 ANSI slots, which is the same reason editors are
+write-only everywhere else here. Starting vim and neovim is the slow part, so
+`--no-editors` skips it.
+
+**Ambiguity is reported, not guessed.** konsole stores its scheme per profile,
+so several profiles give several answers — and unless `konsolerc` names a
+default, which one applies genuinely depends on how konsole was started.
+
+In `cscx browse`, schemes a terminal is currently using are marked in the list.
 
 ## Live preview
 
@@ -437,6 +475,13 @@ moving through the list, previewing, and the whole copy-to flow including
 cancellation. That caught a real bug — editing the destination path and then
 changing the target silently discarded the edit, which is how a file lands
 somewhere you did not intend.
+
+Detection is tested against crafted configs in a sandboxed `HOME`, including
+the ordering cases — an include that wins, and inline colors after an include
+that win instead. It also carries a regression test for a real bug: VS Code
+settings routinely contain `"file:///..."` URLs, and the naive `//` comment
+strip this started with truncated the line, leaving the document unparseable
+and the theme silently reported as unset.
 
 Activation is tested entirely against a sandboxed `HOME`, so a wrongly built
 path cannot reach a real config even in a failing test. The rollback path is

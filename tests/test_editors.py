@@ -770,15 +770,13 @@ def test_every_vscode_colour_key_is_one_vscode_ships(vscode_theme):
 def test_the_embedded_key_list_still_matches_the_installed_vscode(vscode_theme):
     """Catches VS Code renaming or dropping a key we rely on."""
     import json as _json
-    import re as _re
+
+    from cscx._text import strip_jsonc
 
     live = set()
     for path in Path("/usr/lib/code/extensions").glob("**/themes/*.json"):
-        raw = path.read_text()
-        raw = _re.sub(r"//[^\n]*", "", raw)
-        raw = _re.sub(r",(\s*[}\]])", r"\1", raw)
         try:
-            live |= set(_json.loads(raw).get("colors", {}))
+            live |= set(_json.loads(strip_jsonc(path.read_text())).get("colors", {}))
         except ValueError:
             continue
     if not live:

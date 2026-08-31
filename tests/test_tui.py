@@ -319,3 +319,44 @@ async def test_installed_applications_are_offered_first(tmp_path, monkeypatch):
         offered = app.screen._apps
         if installed:
             assert offered[0] in installed
+
+
+# -- "in use" markers -----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_schemes_in_use_are_marked(monkeypatch):
+    """The list should say which discovered scheme a terminal is actually on."""
+    import cscx.tui as tui
+    from cscx.active import Active
+
+    target = (FIXTURES / "gruvbox.kitty.conf").resolve()
+    monkeypatch.setattr(
+        tui, "detect_active",
+        lambda **kwargs: [Active("kitty", "terminal", "gruvbox", target, "test")],
+    )
+
+    app = make_app()
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        assert app.in_use == {target: ["kitty"]}
+
+        index = next(i for i, found in enumerate(app._shown) if found.path == target)
+        row = app.query_one("#schemes").get_option_at_index(index).prompt
+        assert "in use by kitty" in row.plain
+
+
+@pytest.mark.asyncio
+async def test_a_failing_probe_leaves_the_list_usable(monkeypatch):
+    """Detection is a nicety; it must never cost you the browser."""
+    import cscx.tui as tui
+
+    def explode(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(tui, "detect_active", explode)
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        assert app.in_use == {}
+        assert app._shown
