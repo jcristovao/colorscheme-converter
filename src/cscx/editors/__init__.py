@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from ..palette import Palette
-from . import neovim, vim
+from . import helix, neovim, vim
 from .roles import CONTRAST_TARGET, EditorPaletteError
 
 __all__ = [
@@ -42,11 +42,11 @@ class Editor(Protocol):
     ) -> str: ...
 
 
-_MODULES = (vim, neovim)
+_MODULES = (vim, neovim, helix)
 
 EDITORS: dict[str, Editor] = {m.NAME: m for m in _MODULES}  # type: ignore[misc]
 
-_ALIASES = {"nvim": "neovim", "vi": "vim"}
+_ALIASES = {"nvim": "neovim", "vi": "vim", "hx": "helix"}
 
 
 def get_editor(name: str) -> Editor:

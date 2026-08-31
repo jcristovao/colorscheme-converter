@@ -38,6 +38,12 @@ def header_lines(palette: Palette, roles: Roles, comment: str) -> list[str]:
     else:
         lines.append(f"{comment} Palette colors only (--terminal-exact).")
 
+    # vim and neovim set `background` explicitly; helix has no such field, so
+    # recording it here keeps every generated theme self-describing.
+    lines.append(
+        f"{comment} {'dark' if roles.background_is_dark else 'light'} background."
+    )
+
     lines.append(comment)
     for role in sorted(roles.slots):
         color = roles.slots[role]

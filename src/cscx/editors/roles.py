@@ -68,11 +68,20 @@ class Roles:
 
     def resolve(self, chain: str | None) -> Color | None:
         """Resolve a `"selection_bg|base02"` fallback chain to the first hit."""
+        name = self.resolve_name(chain)
+        return None if name is None else self.slots[name]
+
+    def resolve_name(self, chain: str | None) -> str | None:
+        """The *role* a chain resolves to, for formats that name their colors.
+
+        Helix themes reference a `[palette]` by name rather than repeating hex
+        values, so its writer needs the role rather than the color.
+        """
         if not chain:
             return None
         for name in chain.split("|"):
-            if (color := self.slots.get(name)) is not None:
-                return color
+            if self.slots.get(name) is not None:
+                return name
         return None
 
 

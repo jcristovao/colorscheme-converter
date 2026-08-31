@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cscx"
-version = "0.3.0"
-description = "Convert terminal color schemes between nine formats, and into vim and neovim themes"
+version = "0.4.0"
+description = "Convert terminal color schemes between nine formats, and into vim, neovim and helix themes"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -16,6 +16,11 @@ cscx = "cscx.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cscx"]
+
+# Installs the man page to $prefix/share/man/man1, so `man cscx` works after
+# a normal pip or pipx install.
+[tool.hatch.build.targets.wheel.shared-data]
+"docs/cscx.1" = "share/man/man1/cscx.1"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -5,8 +5,8 @@ Convert terminal color schemes between formats through one canonical palette.
 Hub-and-spoke: every format is parsed into a single `Palette`, and every format
 is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters —
 instead of the 72 directed pairs a format-to-format converter would need.
-Vim and Neovim themes are generated from the same palette through a separate
-mapping layer.
+Vim, Neovim and Helix themes are generated from the same palette through a
+separate mapping layer.
 
 ## Why this exists
 
@@ -44,6 +44,7 @@ $ cscx convert kitty.conf --to all -o ./out       # every format at once
 $ cscx convert scheme.toml --to foot --fill       # derive what the source lacks
 
 $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
+$ cscx convert kitty.conf --to helix -o ~/.config/helix/themes/mine.toml
 $ cscx convert kitty.conf --to vim --terminal-exact
 
 $ cscx detect ~/.config/kitty/kitty.conf
@@ -115,14 +116,21 @@ derived values on stderr.
 
 ## Editors
 
-Vim and Neovim are written, not read. A terminal scheme is ~20 values; an
-editor theme is hundreds of semantic highlight groups, so the mapping is lossy
-in a way that cannot be run backwards — there is no reading a vim colorscheme
-back into 16 ANSI slots.
+Vim, Neovim and Helix are written, not read. A terminal scheme is ~20 values;
+an editor theme is hundreds of semantic highlight groups, so the mapping is
+lossy in a way that cannot be run backwards — there is no reading a vim
+colorscheme back into 16 ANSI slots.
+
+| Editor | Output | Installs as |
+|---|---|---|
+| `vim` | `.vim` | `~/.vim/colors/NAME.vim` |
+| `neovim` (`nvim`) | `.lua` | `~/.config/nvim/colors/NAME.lua` |
+| `helix` (`hx`) | `.toml` | `~/.config/helix/themes/NAME.toml` |
 
 ```console
 $ cscx convert ~/.config/kitty/kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
 $ cscx convert Gruvbox.colorscheme --to vim --fill
+$ cscx convert Gruvbox.colorscheme --to helix
 ```
 
 **The mapping is base16.** Something has to decide that "green" means
@@ -162,6 +170,12 @@ Neovim output covers core groups, treesitter captures, LSP semantic tokens
 (linked to their treesitter equivalents, so the two cannot drift apart) and
 diagnostics — 214 groups. It deliberately does not set `termguicolors`, which
 is the user's setting rather than a colorscheme's business.
+
+Helix output names its colors in a `[palette]` table and refers to them by
+role from each of 143 scopes — `"keyword" = "base0E"` rather than a repeated
+hex literal — so the generated theme stays readable and editable. The
+`[palette]` section is written last, because everything after a TOML table
+header belongs to that table.
 
 An editor theme needs a complete palette. Missing values that `--fill` can
 derive prompt for `--fill`; a missing *hue* — one of the eight normal ANSI
@@ -212,6 +226,13 @@ Output is verified against each format's actual consumer where one exists:
 | `wezterm`, `windows-terminal`, `iterm2` | `tomllib`, `json`, `plistlib` |
 | `vim` | sourced in real vim, highlights dumped and checked |
 | `neovim` | sourced in real neovim, `nvim_get_hl` checked |
+| `helix` | `tomllib`, plus scope/modifier names checked against the Helix reference |
+
+Helix, ghostty and wezterm are not installed here, so their output is validated
+structurally rather than by loading it. For Helix that means every scope name,
+modifier and underline style is checked against the list in the Helix theme
+reference, and every `[palette]` reference is checked to resolve — a dangling
+name would make Helix reject the whole theme.
 
 ## Testing
 
@@ -219,7 +240,7 @@ Output is verified against each format's actual consumer where one exists:
 $ python3 -m pytest
 ```
 
-613 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
+648 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
 so an off-by-eight in a bright/normal mapping cannot pass — written out in all
 ten fixture formats. Every parser must produce an identical palette from it,
 and every emitter must round-trip it through every parser.
@@ -236,7 +257,26 @@ corpus, a sample of which are loaded in real neovim.
 
 The editor tests include hostile input: a scheme name carrying a newline used
 to end the header comment early and turn the rest of the file into code. Names
-are flattened now, and both editors are made to load a theme built from one.
+are flattened now, vim and neovim are made to load a theme built from one, and
+the Helix theme is checked to still parse as TOML.
+
+The documentation is tested too, rather than trusted to keep up: every format,
+editor, command and CLI option must appear in both the man page and this file,
+the man page must render without a single roff warning, and the version in
+`pyproject.toml`, `__version__` and the man page header must agree. That last
+check caught `__version__` sitting two releases behind.
+
+## Documentation
+
+```console
+$ man cscx        # after install; otherwise: man -l docs/cscx.1
+$ cscx formats
+$ cscx convert --help
+```
+
+`docs/cscx.1` covers every command, option, format and editor, along with the
+gap-filling conventions and the lossiness caveats. It installs to
+`share/man/man1` on a normal `pip` or `pipx` install.
 
 ## Adding a format
 
@@ -292,8 +332,16 @@ Editor writers live in `src/cscx/editors/` and register in that package's
 `_MODULES`. A writer needs `NAME`, `EXTENSION`, `BINARY`, `INSTALL_PATH` and an
 `emit(palette, *, terminal_exact, contrast_target)`.
 
-Most of the work is already done: `roles.derive()` produces the base16 roles,
-and the tables in `groups.py` are editor-agnostic — they name colors by role,
-never by hue. A new writer is mostly a matter of rendering those tables in the
-target's syntax. Helix (TOML), Emacs and VS Code are the obvious next ones; all
-three can reuse `CORE` and most of `TREESITTER` unchanged.
+`roles.derive()` does the hard part and is fully reusable: it produces the
+base16 roles, the derived UI ramp and the contrast guarantee regardless of
+target.
+
+The group tables, though, are per-editor. Helix proved this — its scope names
+are close to treesitter captures but not the same (`constant.character.escape`,
+not `@string.escape`), its `ui.*` tree is its own, and it spells modifiers
+differently (`underlined`, `crossed_out`, `reversed`). It needed its own table
+of 143 scopes. Expect the same for Emacs or VS Code: reuse the roles, write a
+new table.
+
+Because the colors in those tables are named by role and never by hue, the
+table is the only part that needs thought — rendering it is mechanical.

@@ -370,15 +370,25 @@ def test_toml_string_escapes_quotes_and_backslashes():
     assert toml_string("back\\slash") == '"back\\\\slash"'
 
 
+#: How each generated theme opens a comment.
+COMMENT_PREFIX = {"vim": '"', "neovim": "--", "helix": "#"}
+
+
 @pytest.mark.parametrize("editor", sorted(EDITORS))
 def test_a_hostile_scheme_name_cannot_break_the_output(gruvbox, editor):
     """A newline in the name would end the comment and run the rest as code."""
     gruvbox.name = HOSTILE_NAME
     output = emit_theme(gruvbox, editor)
-    comment = "--" if editor == "neovim" else '"'
+    comment = COMMENT_PREFIX[editor]
     for line in output.splitlines():
         if line and not line.startswith(comment):
+            # Outside comments the raw name may only appear slugified.
             assert "evil" not in line or "colors_name" in line
+
+
+def test_every_editor_has_a_known_comment_prefix():
+    """Guards the test above from silently skipping a newly added editor."""
+    assert set(COMMENT_PREFIX) == set(EDITORS)
 
 
 @pytest.mark.skipif(not shutil.which("nvim"), reason="neovim not installed")
@@ -405,3 +415,152 @@ def test_vim_loads_a_theme_with_a_hostile_name(gruvbox, tmp_path):
     )
     assert result.returncode == 0
     assert not result.stderr.strip(), result.stderr
+
+
+# -- helix ----------------------------------------------------------------
+
+# Verbatim from the Helix theme reference. Helix is not installed here, so a
+# scope name typo cannot be caught by loading the theme -- this list is the
+# substitute for that check.
+HELIX_SCOPES = {
+    "attribute", "type", "type.builtin", "type.parameter", "type.enum",
+    "type.enum.variant", "constructor", "constant", "constant.builtin",
+    "constant.builtin.boolean", "constant.character", "constant.character.escape",
+    "constant.numeric", "constant.numeric.integer", "constant.numeric.float",
+    "string", "string.regexp", "string.special", "string.special.path",
+    "string.special.url", "string.special.symbol", "comment", "comment.line",
+    "comment.line.documentation", "comment.block", "comment.block.documentation",
+    "comment.unused", "variable", "variable.builtin", "variable.parameter",
+    "variable.other", "variable.other.member", "variable.other.member.private",
+    "label", "punctuation", "punctuation.delimiter", "punctuation.bracket",
+    "punctuation.special", "keyword", "keyword.control",
+    "keyword.control.conditional", "keyword.control.repeat",
+    "keyword.control.import", "keyword.control.return",
+    "keyword.control.exception", "keyword.operator", "keyword.directive",
+    "keyword.function", "keyword.storage", "keyword.storage.type",
+    "keyword.storage.modifier", "operator", "function", "function.builtin",
+    "function.method", "function.method.private", "function.macro",
+    "function.special", "tag", "tag.builtin", "namespace", "special",
+    "markup", "markup.heading", "markup.heading.marker", "markup.heading.1",
+    "markup.heading.2", "markup.heading.3", "markup.heading.4",
+    "markup.heading.5", "markup.heading.6", "markup.list",
+    "markup.list.unnumbered", "markup.list.numbered", "markup.list.checked",
+    "markup.list.unchecked", "markup.bold", "markup.italic",
+    "markup.strikethrough", "markup.link", "markup.link.url",
+    "markup.link.label", "markup.link.text", "markup.quote", "markup.raw",
+    "markup.raw.inline", "markup.raw.block", "diff", "diff.plus",
+    "diff.plus.gutter", "diff.minus", "diff.minus.gutter", "diff.delta",
+    "diff.delta.moved", "diff.delta.conflict", "diff.delta.gutter",
+    "ui.background", "ui.background.separator", "ui.cursor", "ui.cursor.normal",
+    "ui.cursor.insert", "ui.cursor.select", "ui.cursor.match",
+    "ui.cursor.primary", "ui.cursor.primary.normal", "ui.cursor.primary.insert",
+    "ui.cursor.primary.select", "ui.debug.breakpoint", "ui.debug.active",
+    "ui.gutter", "ui.gutter.selected", "ui.linenr", "ui.linenr.selected",
+    "ui.statusline", "ui.statusline.inactive", "ui.statusline.normal",
+    "ui.statusline.insert", "ui.statusline.select", "ui.statusline.separator",
+    "ui.bufferline", "ui.bufferline.active", "ui.bufferline.background",
+    "ui.popup", "ui.popup.info", "ui.picker.header", "ui.picker.header.column",
+    "ui.picker.header.column.active", "ui.window", "ui.help", "ui.text",
+    "ui.text.focus", "ui.text.inactive", "ui.text.info", "ui.text.directory",
+    "ui.virtual.ruler", "ui.virtual.whitespace", "ui.virtual.indent-guide",
+    "ui.virtual.inlay-hint", "ui.virtual.inlay-hint.parameter",
+    "ui.virtual.inlay-hint.type", "ui.virtual.wrap", "ui.virtual.jump-label",
+    "ui.menu", "ui.menu.selected", "ui.menu.scroll", "ui.selection",
+    "ui.selection.primary", "ui.highlight", "ui.highlight.frameline",
+    "ui.cursorline.primary", "ui.cursorline.secondary",
+    "ui.cursorcolumn.primary", "ui.cursorcolumn.secondary",
+    "warning", "error", "info", "hint", "diagnostic", "diagnostic.hint",
+    "diagnostic.info", "diagnostic.warning", "diagnostic.error",
+    "diagnostic.unnecessary", "diagnostic.deprecated", "tabstop",
+}
+
+HELIX_MODIFIERS = {
+    "bold", "dim", "italic", "underlined", "slow_blink", "rapid_blink",
+    "reversed", "hidden", "crossed_out",
+}
+HELIX_UNDERLINE_STYLES = {"line", "curl", "dashed", "dotted", "double_line"}
+
+
+@pytest.fixture
+def helix_theme(gruvbox):
+    import tomllib
+
+    return tomllib.loads(emit_theme(gruvbox, "helix"))
+
+
+def test_helix_output_is_valid_toml(helix_theme):
+    assert "palette" in helix_theme
+    assert helix_theme["ui.background"] == {"bg": "base00"}
+
+
+def test_helix_scope_names_are_all_real(helix_theme):
+    from cscx.editors.groups import HELIX
+
+    for group in HELIX:
+        assert group.name in HELIX_SCOPES, f"{group.name!r} is not a Helix scope"
+    # And nothing extra leaked into the file beyond the scopes and the palette.
+    assert set(helix_theme) - {"palette"} <= HELIX_SCOPES
+
+
+def test_every_helix_colour_reference_exists_in_the_palette(helix_theme):
+    """A dangling palette name would make Helix reject the whole theme."""
+    palette = helix_theme["palette"]
+    for scope, value in helix_theme.items():
+        if scope == "palette":
+            continue
+        if isinstance(value, str):
+            assert value in palette, f"{scope} -> {value}"
+            continue
+        for key in ("fg", "bg"):
+            if key in value:
+                assert value[key] in palette, f"{scope}.{key} -> {value[key]}"
+        if "color" in value.get("underline", {}):
+            assert value["underline"]["color"] in palette
+
+
+def test_helix_modifiers_and_underline_styles_are_valid(helix_theme):
+    for scope, value in helix_theme.items():
+        if scope == "palette" or isinstance(value, str):
+            continue
+        for modifier in value.get("modifiers", []):
+            assert modifier in HELIX_MODIFIERS, f"{scope}: {modifier}"
+        if underline := value.get("underline"):
+            assert underline["style"] in HELIX_UNDERLINE_STYLES
+
+
+def test_helix_palette_comes_last(gruvbox):
+    """A bare key after `[palette]` would be swallowed into that table."""
+    lines = [l for l in emit_theme(gruvbox, "helix").splitlines()
+             if l and not l.startswith("#")]
+    header = lines.index("[palette]")
+    assert all("=" in l for l in lines[header + 1:])
+    assert all(l.startswith('"') for l in lines[:header])
+
+
+def test_helix_uses_the_shorthand_for_foreground_only_scopes(gruvbox):
+    output = emit_theme(gruvbox, "helix")
+    assert '"keyword" = "base0E"' in output
+    assert '"comment" = { fg = "base03", modifiers = ["italic"] }' in output
+
+
+def test_helix_undercurl_becomes_an_underline_style(gruvbox):
+    output = emit_theme(gruvbox, "helix")
+    assert '"diagnostic.error" = { underline = { color = "base08", style = "curl" } }' in output
+
+
+def test_helix_terminal_exact_still_parses(gruvbox):
+    import tomllib
+
+    doc = tomllib.loads(emit_theme(gruvbox, "helix", terminal_exact=True))
+    palette = doc["palette"]
+    allowed = {c.hex for c in gruvbox.ansi} | {gruvbox.background.hex, gruvbox.foreground.hex}
+    allowed |= {c.hex for c in (gruvbox.cursor, gruvbox.cursor_text,
+                                gruvbox.selection_background,
+                                gruvbox.selection_foreground) if c}
+    for role, value in palette.items():
+        if role.startswith("base"):
+            assert value in allowed, f"{role} is not a palette colour"
+
+
+def test_helix_alias_resolves():
+    assert get_editor("hx").NAME == "helix"

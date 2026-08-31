@@ -1,0 +1,383 @@
+.TH CSCX 1 "2026-08-31" "cscx 0.4.0" "User Commands"
+.
+.SH NAME
+cscx \- convert terminal color schemes between formats and into editor themes
+.
+.SH SYNOPSIS
+.B cscx convert
+.I FILE
+.B \-\-to
+.I TARGET
+.RB [ \-\-from
+.IR FORMAT ]
+.RB [ \-o
+.IR PATH ]
+.RB [ \-\-fill ]
+.RB [ \-\-terminal\-exact ]
+.RB [ \-\-contrast
+.IR RATIO ]
+.RB [ \-\-name
+.IR NAME ]
+.br
+.B cscx parse
+.I FILE
+.RB [ \-\-from
+.IR FORMAT ]
+.RB [ \-\-json ]
+.RB [ \-\-no\-color ]
+.br
+.B cscx detect
+.I FILE
+.RB [ \-\-json ]
+.br
+.B cscx formats
+.
+.SH DESCRIPTION
+.B cscx
+reads a terminal color scheme in any supported format into a single canonical
+palette, and writes that palette back out in any other format. Nine terminal
+formats are read and written; three editors are written only.
+.PP
+The design is hub\-and\-spoke. Every format is parsed into one
+.IR Palette ,
+and every format is emitted from it, so support costs one parser and one
+emitter per format rather than a converter for each ordered pair.
+.PP
+Two rules govern the output. Nothing is invented: a value the source did not
+state is left out rather than guessed, and
+.B \-\-fill
+is how you ask for conventional defaults. Nothing is silently altered: a value
+either survives a conversion unchanged or is absent because the target format
+cannot express it.
+.
+.SH COMMANDS
+.TP
+.BI convert " FILE"
+Read
+.I FILE
+and write it in the format given by
+.BR \-\-to .
+Output goes to standard output unless
+.B \-o
+is given.
+.TP
+.BI parse " FILE"
+Read
+.I FILE
+and show the resulting palette, with terminal color swatches when standard
+output is a terminal. Values the source did not set are reported on standard
+error.
+.TP
+.BI detect " FILE"
+Report which formats
+.I FILE
+resembles, most confident first, with a score from 0.0 to 1.0. Useful when
+.B convert
+guesses wrong and you need a name for
+.BR \-\-from .
+.TP
+.B formats
+List every readable format and writable editor, with file extensions, accepted
+aliases, and where a generated editor theme belongs.
+.
+.SH OPTIONS
+.TP
+.BI \-t " TARGET" "\fR, \fP" \-\-to " TARGET"
+Output format or editor. The literal
+.B all
+writes every supported target and requires
+.B \-o
+to name a directory. Required for
+.BR convert .
+.TP
+.BI \-f " FORMAT" "\fR, \fP" \-\-from " FORMAT"
+Parse as
+.I FORMAT
+instead of detecting it. Editors cannot be read, so they are not accepted here.
+.TP
+.BI \-o " PATH" "\fR, \fP" \-\-output " PATH"
+Write to
+.IR PATH .
+With
+.BR "\-\-to all" ,
+.I PATH
+is a directory, created if needed.
+.TP
+.B \-\-fill
+Derive values the source omitted, and mark each derived line as such. See
+.B GAP FILLING
+below. Without this flag the output carries only what was read.
+.TP
+.B \-\-terminal\-exact
+Editors only. Build the theme from the sixteen palette colors alone, deriving
+no intermediate shades. Gives exact parity with the terminal at the cost of a
+flatter interface; where that costs something visible, the generated file says
+so in a comment.
+.TP
+.BI \-\-contrast " RATIO"
+Editors only. Minimum contrast ratio for comments and line numbers against the
+background. Defaults to 4.5, the WCAG AA threshold for normal text. A value of
+.B 0
+disables the check.
+.TP
+.BI \-\-name " NAME"
+Override the scheme name. Otherwise it comes from the source file, or from a
+name the format records itself, such as konsole's
+.I Description
+field.
+.TP
+.B \-\-json
+Emit machine\-readable output.
+.RB For " parse" ,
+the palette; for
+.BR detect ,
+the ranked formats.
+.TP
+.B \-\-no\-color
+Suppress the color swatches in
+.B parse
+output.
+.TP
+.B \-\-version
+Print the version and exit.
+.
+.SH TERMINAL FORMATS
+All nine are both read and written.
+.TP
+.B alacritty
+.IR .toml ", " .yml .
+Both the current TOML format and the YAML used before 0.13.
+.TP
+.B foot
+.IR foot.ini .
+Regular, bright and dim slots, alpha, and the two\-value cursor.
+.TP
+.B ghostty
+.IR config .
+The
+.BI palette " N" =#hex
+form and kebab\-case keys.
+.TP
+.B iterm2
+.IR .itermcolors .
+Floating\-point components; XML and binary property lists are both read, XML
+is written.
+.TP
+.B kitty
+.IR kitty.conf .
+256 slots, tab bar colors, and symbolic references such as
+.BR "cursor_text_color background" .
+.TP
+.B konsole
+.IR .colorscheme .
+Intense and faint variants, description, opacity. Aliased as
+.BR kterminal .
+.TP
+.B wezterm
+.IR .toml .
+The
+.I ansi
+and
+.I brights
+arrays and the
+.I [metadata]
+name.
+.TP
+.B windows\-terminal
+.IR .json .
+A bare scheme object, an array of them, or one nested in
+.IR settings.json .
+Aliased as
+.BR wt .
+.TP
+.B xresources
+.IR .Xresources .
+Recognises urxvt and xterm prefixes and X11
+.BI rgb: rr / gg / bb
+values. Aliased as
+.BR xrdb .
+.PP
+Color values are read in every spelling these formats use:
+.BR #rgb ,
+.BR #rrggbb ,
+.BR #rrggbbaa ,
+.BR 0xrrggbb ,
+bare
+.BR rrggbb ,
+X11
+.BR rgb: rr / gg / bb ,
+CSS
+.BR rgb() ,
+decimal
+.B r,g,b
+triples, and CSS or X11 color names.
+.
+.SH EDITORS
+Editors are written, not read. A terminal scheme holds around twenty values
+while an editor theme holds hundreds of semantic highlight groups, so the
+mapping is lossy in a way that cannot be reversed.
+.TP
+.B vim
+.IR ~/.vim/colors/ NAME .vim
+.TP
+.B neovim
+.IR ~/.config/nvim/colors/ NAME .lua .
+Covers core groups, treesitter captures, LSP semantic tokens and diagnostics.
+Aliased as
+.BR nvim .
+.TP
+.B helix
+.IR ~/.config/helix/themes/ NAME .toml .
+Aliased as
+.BR hx .
+.PP
+The mapping is base16: ANSI red becomes the variable and diff\-deleted role,
+blue becomes functions, magenta becomes keywords, and so on.
+.PP
+base16 also has a greyscale ramp \(em statusline, cursorline, line numbers,
+comments \(em that no terminal palette contains. Those shades are interpolated
+from the background toward the foreground in the OKLab color space, which
+steps evenly to the eye where a linear\-light blend visibly overshoots.
+.B \-\-terminal\-exact
+suppresses this and uses palette colors only.
+.PP
+Comments are held to the contrast ratio set by
+.BR \-\-contrast ,
+and the blend is capped at 85% of the way to the foreground. The cap matters
+for low\-contrast schemes, where reaching the target would put comments on top
+of normal text; when it binds, the generated theme records the shortfall in a
+comment.
+.PP
+Themes carry terminal color indices alongside their true\-color values, so an
+editor running without true\-color support still renders correctly. A color
+that is one of the scheme's own ANSI slots is written as index 0 to 15, so the
+terminal draws it from the same palette the theme came from. The vim and
+neovim themes also set the built\-in terminal's colors.
+.PP
+An editor theme needs a complete palette. Missing values that
+.B \-\-fill
+can supply prompt for it; a missing hue \(em one of the eight normal ANSI
+colors \(em is refused outright, because an absent hue cannot be derived from
+the others.
+.
+.SH GAP FILLING
+By default the output carries only what was read, leaving the target program
+to apply its own defaults. Converting a konsole scheme, which has no cursor
+color, to kitty produces a config with no cursor line.
+.PP
+.B \-\-fill
+supplies the missing values from long\-standing convention:
+.RS
+.IP \(bu 3
+background and foreground fall back to color0 and color7
+.IP \(bu 3
+a missing bright slot repeats its normal counterpart
+.IP \(bu 3
+the cursor takes the foreground, and the glyph beneath it the background
+.IP \(bu 3
+selection is inverse video
+.RE
+.PP
+Dim colors are never derived. A dim variant is a darkened color rather than a
+copy, and guessing one is worse than leaving it to the terminal.
+.PP
+Each derived value is annotated in the output where the format permits a
+comment, so it cannot be mistaken for one the source stated. Formats without
+inline comments annotate on the preceding line; JSON and property lists cannot
+be annotated at all, and their derived values are reported on standard error.
+.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+.TP
+.B 1
+The file could not be read, its format could not be identified, the requested
+format is unknown, or an editor theme was refused for an incomplete palette.
+.TP
+.B 2
+The command line was invalid.
+.
+.SH EXAMPLES
+Convert a konsole scheme to kitty, keeping only what konsole stated:
+.PP
+.RS
+.EX
+cscx convert ~/.local/share/konsole/Gruvbox.colorscheme \-\-to kitty
+.EE
+.RE
+.PP
+The same, with the cursor and selection colors konsole lacks derived from
+convention:
+.PP
+.RS
+.EX
+cscx convert Gruvbox.colorscheme \-\-to kitty \-\-fill
+.EE
+.RE
+.PP
+Generate a neovim theme from the kitty config you already use:
+.PP
+.RS
+.EX
+cscx convert ~/.config/kitty/kitty.conf \-\-to neovim \e
+    \-o ~/.config/nvim/colors/mine.lua
+.EE
+.RE
+.PP
+Write every supported format and editor into one directory:
+.PP
+.RS
+.EX
+cscx convert kitty.conf \-\-to all \-o ./out
+.EE
+.RE
+.PP
+Inspect a scheme, or ask what a file is when detection guesses wrong:
+.PP
+.RS
+.EX
+cscx parse theme.itermcolors
+cscx detect mystery.conf
+cscx convert mystery.conf \-\-from ghostty \-\-to alacritty
+.EE
+.RE
+.
+.SH FILES
+.TP
+.I ~/.config/kitty/kitty.conf
+.TQ
+.I ~/.config/alacritty/alacritty.toml
+.TQ
+.I ~/.config/ghostty/config
+.TQ
+.I ~/.config/foot/foot.ini
+.TQ
+.I ~/.local/share/konsole/*.colorscheme
+Typical locations of the configs
+.B cscx
+reads.
+.
+.SH CAVEATS
+Conversion is lossy toward formats with fewer concepts. konsole stores no
+cursor or selection color; Windows Terminal has no under\-cursor or
+selection\-foreground key; X resources has a cursor color but no under\-cursor
+foreground; iTerm2, konsole and Windows Terminal hold no palette entries above
+index 15. Values that cannot be carried are dropped, never approximated.
+.PP
+Some formats cannot express a partial value. wezterm's
+.I ansi
+array is fixed\-length, so a source missing one normal slot yields a comment
+naming the gap rather than an array padded with the wrong colors; foot writes
+its cursor as a pair and cannot set one half alone.
+.
+.SH SEE ALSO
+.BR kitty (1),
+.BR alacritty (1),
+.BR foot (1),
+.BR foot.ini (5),
+.BR konsole (1),
+.BR xrdb (1),
+.BR vim (1),
+.BR nvim (1),
+.BR hx (1)
