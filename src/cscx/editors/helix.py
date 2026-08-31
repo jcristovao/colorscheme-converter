@@ -21,6 +21,7 @@ from .roles import CONTRAST_TARGET, Roles, derive
 
 NAME = "helix"
 EXTENSION = ".toml"
+FILENAME = "{name}.toml"
 BINARY = False
 INSTALL_PATH = "~/.config/helix/themes/{name}.toml"
 

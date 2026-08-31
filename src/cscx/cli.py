@@ -8,7 +8,13 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .editors import CONTRAST_TARGET, EDITORS, EditorPaletteError, get_editor
+from .editors import (
+    CONTRAST_TARGET,
+    EDITORS,
+    EditorPaletteError,
+    get_editor,
+    theme_warnings,
+)
 from .emitters import EMITTERS, get_emitter
 from .fill import fill
 from .formats import PARSERS, detect_format, get_parser, parse_file
@@ -181,7 +187,7 @@ def _cmd_convert(args: argparse.Namespace) -> int:
             return 1
         return _write_all(palette, writers, args.output)
 
-    name, extension, binary, render = writers[0]
+    name, _filename, binary, render = writers[0]
     try:
         rendered = render(palette)
     except EditorPaletteError as exc:
@@ -189,6 +195,8 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         return 1
 
     _report_gaps(palette, derived, is_editor=name in EDITORS)
+    if name in EDITORS:
+        _report_theme_warnings(palette, args)
 
     if args.output is None:
         if binary:
@@ -212,7 +220,7 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
         editor = get_editor(target)
         return (
             editor.NAME,
-            editor.EXTENSION,
+            editor.FILENAME,
             editor.BINARY,
             lambda palette: editor.emit(
                 palette,
@@ -225,7 +233,7 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
     emitter = get_emitter(target)
     return (
         emitter.NAME,
-        emitter.EXTENSION,
+        f"{{name}}.{emitter.NAME}{emitter.EXTENSION}",
         emitter.BINARY,
         lambda palette: emitter.emit(palette, derived),
     )
@@ -233,18 +241,56 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
 
 def _write_all(palette, writers, directory: Path) -> int:
     directory.mkdir(parents=True, exist_ok=True)
-    stem = (palette.name or "scheme").replace(" ", "_").replace("/", "-")
+    # Editors are not free to pick a filename: Emacs only finds a theme named
+    # `NAME-theme.el`, and VS Code expects `NAME-color-theme.json`.
+    stem = _slug(palette)
     failures = 0
-    for name, extension, _binary, render in writers:
-        target = directory / f"{stem}.{name}{extension}"
+    written: dict[Path, tuple[str, bytes]] = {}
+
+    for name, filename, _binary, render in writers:
+        target = directory / filename.format(name=stem)
         try:
-            _write(target, render(palette))
+            rendered = render(palette)
         except EditorPaletteError as exc:
             print(f"cscx: skipped {name}: {exc}", file=sys.stderr)
             failures += 1
             continue
+
+        # Forks of the same editor produce the same file under the same name.
+        # Writing it repeatedly would be silent self-overwriting, so say so,
+        # and compare the content rather than assuming it matches.
+        payload = rendered if isinstance(rendered, bytes) else rendered.encode()
+        if (previous := written.get(target)) is not None:
+            owner, existing = previous
+            note = "identical" if existing == payload else "DIFFERENT CONTENT"
+            print(f"cscx: {name} shares {target.name} with {owner} ({note})",
+                  file=sys.stderr)
+            continue
+
+        _write(target, rendered)
+        written[target] = (name, payload)
         print(f"wrote {target}", file=sys.stderr)
     return 1 if failures else 0
+
+
+def _slug(palette) -> str:
+    from .editors._common import slug
+
+    return slug(palette.name)
+
+
+def _report_theme_warnings(palette, args: argparse.Namespace) -> None:
+    """Editor caveats, on stderr as well as in the file where one is possible."""
+    try:
+        warnings = theme_warnings(
+            palette,
+            terminal_exact=args.terminal_exact,
+            contrast_target=CONTRAST_TARGET if args.contrast is None else args.contrast,
+        )
+    except EditorPaletteError:
+        return
+    for warning in warnings:
+        print(f"cscx: {warning}", file=sys.stderr)
 
 
 def _write(path: Path, rendered: str | bytes) -> None:

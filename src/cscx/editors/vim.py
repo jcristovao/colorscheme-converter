@@ -15,6 +15,7 @@ from .roles import CONTRAST_TARGET, Roles, derive
 
 NAME = "vim"
 EXTENSION = ".vim"
+FILENAME = "{name}.vim"
 BINARY = False
 #: Where the generated file belongs, mentioned in its own header.
 INSTALL_PATH = "~/.vim/colors/{name}.vim"

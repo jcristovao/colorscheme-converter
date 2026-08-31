@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["single_line", "toml_string"]
+__all__ = ["single_line", "toml_string", "elisp_string"]
 
 _WHITESPACE = re.compile(r"\s+")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
@@ -26,5 +26,11 @@ def single_line(text: str | None, limit: int = 120) -> str:
 
 def toml_string(text: str | None) -> str:
     """Render `text` as a quoted TOML basic string, escaping what must be."""
+    escaped = single_line(text).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def elisp_string(text: str | None) -> str:
+    """Render `text` as an Emacs Lisp string literal."""
     escaped = single_line(text).replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'

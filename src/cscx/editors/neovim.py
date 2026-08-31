@@ -19,6 +19,7 @@ from .roles import CONTRAST_TARGET, derive
 
 NAME = "neovim"
 EXTENSION = ".lua"
+FILENAME = "{name}.lua"
 BINARY = False
 INSTALL_PATH = "~/.config/nvim/colors/{name}.lua"
 

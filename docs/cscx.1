@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.4.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.5.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -228,8 +228,35 @@ Aliased as
 .TP
 .B helix
 .IR ~/.config/helix/themes/ NAME .toml .
-Aliased as
+Names its colors in a
+.I [palette]
+table and refers to them by role. Aliased as
 .BR hx .
+.TP
+.B emacs
+.IR ~/.emacs.d/themes/ NAME \-theme.el .
+Built\-in faces only; package faces would be guesswork about what is
+installed. Also sets
+.IR ansi\-color\-names\-vector ,
+so shell and compilation buffers match the source terminal.
+.TP
+.B vscode
+.IR <extension>/themes/ NAME \-color\-theme.json .
+Sets the integrated terminal's sixteen colors as well as the editor's. Aliased
+as
+.BR code .
+.TP
+.B cursor
+.TQ
+.B antigravity
+The same theme file as
+.BR vscode ,
+byte for byte; only the extension directory differs, under
+.I ~/.cursor
+and
+.I ~/.antigravity
+respectively.
+.BR antigravity " is aliased as " ag .
 .PP
 The mapping is base16: ANSI red becomes the variable and diff\-deleted role,
 blue becomes functions, magenta becomes keywords, and so on.
@@ -259,6 +286,41 @@ An editor theme needs a complete palette. Missing values that
 can supply prompt for it; a missing hue \(em one of the eight normal ANSI
 colors \(em is refused outright, because an absent hue cannot be derived from
 the others.
+.SS Packaging a VS Code theme
+.B vscode ,
+.B cursor
+and
+.B antigravity
+emit the theme document itself, which those editors load from within an
+extension rather than on its own. The smallest wrapper is a directory holding
+the generated file under
+.I themes/
+and a
+.I package.json
+naming it:
+.PP
+.RS
+.EX
+{
+  "name": "mine", "version": "1.0.0", "engines": { "vscode": "*" },
+  "contributes": { "themes": [ {
+    "label": "Mine", "uiTheme": "vs\-dark",
+    "path": "./themes/mine\-color\-theme.json"
+  } ] }
+}
+.EE
+.RE
+.PP
+Use
+.B vs\-light
+as the
+.I uiTheme
+for a light scheme. Drop that directory into
+.IR ~/.vscode/extensions ,
+.I ~/.cursor/extensions
+or
+.I ~/.antigravity/extensions
+and restart the editor.
 .
 .SH GAP FILLING
 By default the output carries only what was read, leaving the target program
@@ -380,4 +442,6 @@ its cursor as a pair and cannot set one half alone.
 .BR xrdb (1),
 .BR vim (1),
 .BR nvim (1),
-.BR hx (1)
+.BR hx (1),
+.BR emacs (1),
+.BR code (1)

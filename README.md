@@ -5,8 +5,8 @@ Convert terminal color schemes between formats through one canonical palette.
 Hub-and-spoke: every format is parsed into a single `Palette`, and every format
 is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters —
 instead of the 72 directed pairs a format-to-format converter would need.
-Vim, Neovim and Helix themes are generated from the same palette through a
-separate mapping layer.
+Vim, Neovim, Helix, Emacs and VS Code themes are generated from the same
+palette through a separate mapping layer.
 
 ## Why this exists
 
@@ -45,6 +45,7 @@ $ cscx convert scheme.toml --to foot --fill       # derive what the source lacks
 
 $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
 $ cscx convert kitty.conf --to helix -o ~/.config/helix/themes/mine.toml
+$ cscx convert kitty.conf --to emacs -o ~/.emacs.d/themes/mine-theme.el
 $ cscx convert kitty.conf --to vim --terminal-exact
 
 $ cscx detect ~/.config/kitty/kitty.conf
@@ -116,21 +117,28 @@ derived values on stderr.
 
 ## Editors
 
-Vim, Neovim and Helix are written, not read. A terminal scheme is ~20 values;
-an editor theme is hundreds of semantic highlight groups, so the mapping is
-lossy in a way that cannot be run backwards — there is no reading a vim
-colorscheme back into 16 ANSI slots.
+Editors are written, not read. A terminal scheme is ~20 values; an editor
+theme is hundreds of semantic highlight groups, so the mapping is lossy in a
+way that cannot be run backwards — there is no reading a vim colorscheme back
+into 16 ANSI slots.
 
 | Editor | Output | Installs as |
 |---|---|---|
 | `vim` | `.vim` | `~/.vim/colors/NAME.vim` |
 | `neovim` (`nvim`) | `.lua` | `~/.config/nvim/colors/NAME.lua` |
 | `helix` (`hx`) | `.toml` | `~/.config/helix/themes/NAME.toml` |
+| `emacs` | `.el` | `~/.emacs.d/themes/NAME-theme.el` |
+| `vscode` (`code`) | `.json` | `~/.vscode/extensions/<ext>/themes/NAME-color-theme.json` |
+| `cursor` | `.json` | `~/.cursor/extensions/<ext>/themes/…` |
+| `antigravity` (`ag`) | `.json` | `~/.antigravity/extensions/<ext>/themes/…` |
+
+Filenames are not free: Emacs only finds a theme named `NAME-theme.el`, and
+VS Code expects `NAME-color-theme.json`, so `--to all` names them accordingly.
 
 ```console
 $ cscx convert ~/.config/kitty/kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
 $ cscx convert Gruvbox.colorscheme --to vim --fill
-$ cscx convert Gruvbox.colorscheme --to helix
+$ cscx convert Gruvbox.colorscheme --to emacs
 ```
 
 **The mapping is base16.** Something has to decide that "green" means
@@ -176,6 +184,48 @@ role from each of 143 scopes — `"keyword" = "base0E"` rather than a repeated
 hex literal — so the generated theme stays readable and editable. The
 `[palette]` section is written last, because everything after a TOML table
 header belongs to that table.
+
+Emacs output covers 89 built-in faces. Package faces — company, flycheck,
+magit — are deliberately absent: they would be guesswork about what the user
+has installed, and a face spec for an unloaded package is inert rather than
+useful. The theme also sets `ansi-color-names-vector`, so shell and
+compilation buffers use the same sixteen colors as the source terminal.
+
+VS Code output sets 112 workbench colors and 35 TextMate scopes, including the
+integrated terminal's full sixteen — the one place a VS Code theme and a
+terminal scheme agree exactly. Every workbench key emitted is one that appears
+in a theme Microsoft ships with VS Code. That matters because VS Code silently
+ignores keys it does not recognise: a typo would quietly do nothing rather than
+fail, so "it's in a shipped theme" is the only cheap proof a key is real. (The
+VS Code docs list `scrollbar.background`; no shipped theme uses it, and the
+real key is `scrollbarSlider.background`.)
+
+**Cursor and Antigravity** are VS Code forks that read a byte-identical theme
+file — a test asserts the three outputs are identical. Only the extension
+directory differs, so they are separate targets purely to document where the
+file goes. Neither is installed here, so unlike VS Code their paths follow the
+documented `~/.<app>/extensions` fork convention rather than being read off a
+local installation.
+
+### Packaging a VS Code theme
+
+VS Code, Cursor and Antigravity load a theme from inside an extension rather
+than on its own. The smallest wrapper is a directory with the generated file
+under `themes/` and a `package.json` naming it:
+
+```json
+{
+  "name": "mine", "version": "1.0.0", "engines": { "vscode": "*" },
+  "contributes": { "themes": [ {
+    "label": "Mine", "uiTheme": "vs-dark",
+    "path": "./themes/mine-color-theme.json"
+  } ] }
+}
+```
+
+Use `vs-light` for a light scheme. Drop the directory into
+`~/.vscode/extensions`, `~/.cursor/extensions` or `~/.antigravity/extensions`
+and restart.
 
 An editor theme needs a complete palette. Missing values that `--fill` can
 derive prompt for `--fill`; a missing *hue* — one of the eight normal ANSI
@@ -227,12 +277,23 @@ Output is verified against each format's actual consumer where one exists:
 | `vim` | sourced in real vim, highlights dumped and checked |
 | `neovim` | sourced in real neovim, `nvim_get_hl` checked |
 | `helix` | `tomllib`, plus scope/modifier names checked against the Helix reference |
+| `emacs` | parsed with an s-expression reader: balanced forms, escaped strings |
+| `vscode` family | `json`, plus every colour key checked against VS Code's own shipped themes |
 
-Helix, ghostty and wezterm are not installed here, so their output is validated
-structurally rather than by loading it. For Helix that means every scope name,
-modifier and underline style is checked against the list in the Helix theme
-reference, and every `[palette]` reference is checked to resolve — a dangling
-name would make Helix reject the whole theme.
+Helix, Emacs, ghostty, wezterm, Cursor and Antigravity are not installed here,
+so their output is validated structurally rather than by loading it, and the
+substitute is made explicit in each case:
+
+- **Helix** — every scope name, modifier and underline style is checked against
+  the list in the Helix theme reference, and every `[palette]` reference must
+  resolve, since a dangling name makes Helix reject the whole theme.
+- **Emacs** — the generated Elisp is parsed by a small s-expression reader in
+  the test suite, which catches the two ways this writer could plausibly break:
+  unbalanced parens, and an unescaped quote inside a string.
+- **VS Code** — every workbench key is checked against the 138 keys extracted
+  from the themes shipped with the locally installed VS Code, embedded in the
+  test suite so the check runs anywhere. A second test re-extracts them from a
+  local install when there is one, so the embedded list cannot go stale.
 
 ## Testing
 
@@ -240,7 +301,7 @@ name would make Helix reject the whole theme.
 $ python3 -m pytest
 ```
 
-648 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
+684 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
 so an off-by-eight in a bright/normal mapping cannot pass — written out in all
 ten fixture formats. Every parser must produce an identical palette from it,
 and every emitter must round-trip it through every parser.
@@ -336,12 +397,17 @@ Editor writers live in `src/cscx/editors/` and register in that package's
 base16 roles, the derived UI ramp and the contrast guarantee regardless of
 target.
 
-The group tables, though, are per-editor. Helix proved this — its scope names
-are close to treesitter captures but not the same (`constant.character.escape`,
-not `@string.escape`), its `ui.*` tree is its own, and it spells modifiers
-differently (`underlined`, `crossed_out`, `reversed`). It needed its own table
-of 143 scopes. Expect the same for Emacs or VS Code: reuse the roles, write a
-new table.
+The group tables, though, are per-editor, and every editor added so far has
+confirmed it: Helix's scopes are close to treesitter captures but not the same
+(`constant.character.escape`, not `@string.escape`) and it spells modifiers
+differently (`underlined`, `crossed_out`); Emacs uses property lists
+(`:weight bold`) over built-in face names; VS Code splits into a flat
+`colors` object and a `tokenColors` array, so its workbench half is a
+`WorkbenchColor` table rather than a `Group` one.
 
 Because the colors in those tables are named by role and never by hue, the
 table is the only part that needs thought — rendering it is mechanical.
+
+If the target is a fork of one already supported, don't copy the writer.
+`vscode_forks.py` is the pattern: delegate to the original and carry only your
+own `INSTALL_PATH`, with a test asserting the output stays identical.

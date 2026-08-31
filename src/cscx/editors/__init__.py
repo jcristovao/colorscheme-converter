@@ -12,8 +12,9 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from ..palette import Palette
-from . import helix, neovim, vim
-from .roles import CONTRAST_TARGET, EditorPaletteError
+from . import emacs, helix, neovim, vim, vscode
+from .vscode_forks import ANTIGRAVITY, CURSOR
+from .roles import CONTRAST_TARGET, EditorPaletteError, derive
 
 __all__ = [
     "EDITORS",
@@ -21,6 +22,7 @@ __all__ = [
     "EditorPaletteError",
     "get_editor",
     "emit_theme",
+    "theme_warnings",
     "CONTRAST_TARGET",
 ]
 
@@ -29,6 +31,9 @@ __all__ = [
 class Editor(Protocol):
     NAME: str
     EXTENSION: str
+    #: Filename template, with `{name}` for the scheme slug. Not every editor
+    #: is free to pick one: Emacs only finds `NAME-theme.el`.
+    FILENAME: str
     BINARY: bool
     #: Where the generated theme belongs, with `{name}` for the scheme slug.
     INSTALL_PATH: str
@@ -42,11 +47,19 @@ class Editor(Protocol):
     ) -> str: ...
 
 
-_MODULES = (vim, neovim, helix)
+_MODULES = (vim, neovim, helix, emacs, vscode, CURSOR, ANTIGRAVITY)
 
 EDITORS: dict[str, Editor] = {m.NAME: m for m in _MODULES}  # type: ignore[misc]
 
-_ALIASES = {"nvim": "neovim", "vi": "vim", "hx": "helix"}
+_ALIASES = {
+    "nvim": "neovim",
+    "vi": "vim",
+    "hx": "helix",
+    "code": "vscode",
+    "ag": "antigravity",
+    "vs-code": "vscode",
+    "visual-studio-code": "vscode",
+}
 
 
 def get_editor(name: str) -> Editor:
@@ -72,3 +85,20 @@ def emit_theme(
     return get_editor(editor).emit(
         palette, terminal_exact=terminal_exact, contrast_target=contrast_target
     )
+
+
+def theme_warnings(
+    palette: Palette,
+    *,
+    terminal_exact: bool = False,
+    contrast_target: float = CONTRAST_TARGET,
+) -> list[str]:
+    """Problems worth telling the user about before writing a theme.
+
+    Most editor formats carry these as comments in the generated file, but
+    VS Code themes are plain JSON with nowhere to put them, so the caller
+    needs a way to surface them itself.
+    """
+    return derive(
+        palette, terminal_exact=terminal_exact, contrast_target=contrast_target
+    ).warnings

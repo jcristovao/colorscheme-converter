@@ -19,6 +19,16 @@ FIXTURES = Path(__file__).parent / "fixtures"
 BASE16 = [f"base0{c}" for c in "0123456789ABCDEF"]
 OPTIONAL_ROLES = {"cursor", "cursor_text", "selection_bg", "selection_fg"}
 
+#: How each generated theme opens a comment. `None` means the format has no
+#: comment syntax, so provenance and warnings cannot be written into the file
+#: and are reported on stderr instead.
+COMMENT_PREFIX = {
+    "vim": '"', "neovim": "--", "helix": "#", "emacs": ";;",
+    "vscode": None, "cursor": None, "antigravity": None,
+}
+COMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if c)
+UNCOMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if not c)
+
 
 @pytest.fixture
 def gruvbox():
@@ -238,7 +248,9 @@ def test_every_group_produces_something(gruvbox):
 def test_theme_declares_its_name_and_background(gruvbox, editor):
     gruvbox.name = "Test Scheme"
     output = emit_theme(gruvbox, editor)
-    assert "test-scheme" in output          # slugified for vim
+    # vim, neovim, helix and emacs need a slug they can use as an identifier;
+    # VS Code shows the name to the user and keeps it as written.
+    assert "test-scheme" in output or "Test Scheme" in output
     assert "dark" in output
 
 
@@ -262,17 +274,26 @@ def test_neovim_does_not_force_termguicolors(gruvbox):
     assert "termguicolors" not in emit_theme(gruvbox, "neovim")
 
 
-@pytest.mark.parametrize("editor", sorted(EDITORS))
+@pytest.mark.parametrize("editor", COMMENTED)
 def test_header_records_where_each_role_came_from(gruvbox, editor):
     output = emit_theme(gruvbox, editor)
     assert "base00" in output and "background" in output
     assert "OKLab" in output
 
 
-@pytest.mark.parametrize("editor", sorted(EDITORS))
+@pytest.mark.parametrize("editor", COMMENTED)
 def test_warnings_reach_the_generated_file(gruvbox, editor):
     output = emit_theme(gruvbox, editor, terminal_exact=True)
     assert "NOTE:" in output
+
+
+@pytest.mark.parametrize("editor", UNCOMMENTED)
+def test_warnings_are_still_reachable_for_commentless_formats(gruvbox, editor):
+    """VS Code themes are plain JSON, so callers need the warnings directly."""
+    from cscx.editors import theme_warnings
+
+    assert "NOTE" not in emit_theme(gruvbox, editor, terminal_exact=True)
+    assert theme_warnings(gruvbox, terminal_exact=True)
 
 
 def test_a_missing_hue_is_refused_without_suggesting_fill(tmp_path):
@@ -293,7 +314,7 @@ def test_a_missing_hue_is_refused_without_suggesting_fill(tmp_path):
 
 def test_unknown_editor_is_rejected():
     with pytest.raises(KeyError, match="unknown editor"):
-        get_editor("emacs")
+        get_editor("notepad")
 
 
 def test_editor_aliases_resolve():
@@ -370,20 +391,24 @@ def test_toml_string_escapes_quotes_and_backslashes():
     assert toml_string("back\\slash") == '"back\\\\slash"'
 
 
-#: How each generated theme opens a comment.
-COMMENT_PREFIX = {"vim": '"', "neovim": "--", "helix": "#"}
-
-
 @pytest.mark.parametrize("editor", sorted(EDITORS))
 def test_a_hostile_scheme_name_cannot_break_the_output(gruvbox, editor):
     """A newline in the name would end the comment and run the rest as code."""
     gruvbox.name = HOSTILE_NAME
     output = emit_theme(gruvbox, editor)
     comment = COMMENT_PREFIX[editor]
+    if comment is None:
+        # No comments to break out of; it only has to stay valid JSON.
+        import json
+
+        assert json.loads(output)["name"]
+        return
     for line in output.splitlines():
         if line and not line.startswith(comment):
-            # Outside comments the raw name may only appear slugified.
-            assert "evil" not in line or "colors_name" in line
+            # Outside comments the name may only appear slugified. The quote is
+            # the marker: slugging replaces it, so its presence means the raw
+            # name reached a place where it could break out.
+            assert 'evil"' not in line
 
 
 def test_every_editor_has_a_known_comment_prefix():
@@ -564,3 +589,258 @@ def test_helix_terminal_exact_still_parses(gruvbox):
 
 def test_helix_alias_resolves():
     assert get_editor("hx").NAME == "helix"
+
+
+# -- emacs ----------------------------------------------------------------
+
+
+def read_sexps(text):
+    """A minimal s-expression reader, to prove the Elisp is well formed.
+
+    Emacs is not installed here, so the generated theme cannot be checked by
+    loading it. Unbalanced parens and an unescaped quote inside a string are
+    the two ways this writer could plausibly break, and both show up here.
+    """
+    forms, stack, current, index = [], [], None, 0
+    while index < len(text):
+        char = text[index]
+        if char == ";":
+            index = text.find("\n", index)
+            if index == -1:
+                break
+            continue
+        if char == '"':
+            index += 1
+            while index < len(text) and text[index] != '"':
+                index += 2 if text[index] == "\\" else 1
+            assert index < len(text), "unterminated string"
+            index += 1
+            continue
+        if char in "([":
+            stack.append(char)
+            if len(stack) == 1:
+                current = index
+        elif char in ")]":
+            assert stack, f"unbalanced close at offset {index}"
+            opened = stack.pop()
+            assert (opened, char) in {("(", ")"), ("[", "]")}, "mismatched bracket"
+            if not stack:
+                forms.append(text[current:index + 1])
+        index += 1
+    assert not stack, "unbalanced open parenthesis"
+    return forms
+
+
+def test_emacs_output_is_well_formed_elisp(gruvbox):
+    forms = read_sexps(emit_theme(gruvbox, "emacs"))
+    heads = [f.split(None, 1)[0].lstrip("(") for f in forms]
+    assert heads == [
+        "deftheme", "custom-theme-set-faces", "custom-theme-set-variables",
+        "provide-theme",
+    ]
+
+
+def test_emacs_theme_name_is_a_valid_symbol(gruvbox):
+    gruvbox.name = "Test Scheme"
+    output = emit_theme(gruvbox, "emacs")
+    assert "(deftheme test-scheme" in output
+    assert "(provide-theme 'test-scheme)" in output
+    assert output.startswith(";;; test-scheme-theme.el")
+    assert output.rstrip().endswith(";;; test-scheme-theme.el ends here")
+
+
+def test_emacs_faces_carry_colours_and_attributes(gruvbox):
+    output = emit_theme(gruvbox, "emacs")
+    assert ''''(default ((t (:foreground "#ebdbb2" :background "#282828"))))''' in output
+    assert ":slant italic" in output
+    assert ":weight bold" in output
+
+
+def test_emacs_sets_the_ansi_colour_vector(gruvbox):
+    """So shell and compilation buffers match the source terminal."""
+    output = emit_theme(gruvbox, "emacs")
+    assert "ansi-color-names-vector" in output
+    vector = output.split("ansi-color-names-vector")[1]
+    assert vector.count("#") == 16
+
+
+def test_emacs_survives_a_hostile_name(gruvbox):
+    gruvbox.name = HOSTILE_NAME
+    read_sexps(emit_theme(gruvbox, "emacs"))     # raises if malformed
+
+
+# -- vscode and its forks -------------------------------------------------
+
+# Every workbench colour key used by a theme Microsoft ships with VS Code.
+# VS Code ignores keys it does not recognise, so a typo would silently do
+# nothing; membership here is what proves a key is real.
+VSCODE_SHIPPED_COLORS = {
+    "activityBar.background", "activityBar.foreground",
+    "activityBarBadge.background", "agentsChatInput.border",
+    "agentsChatInput.focusBorder", "agentsNewSessionButton.border",
+    "agentsPanel.border", "badge.background", "badge.foreground",
+    "button.background", "debugExceptionWidget.background",
+    "debugExceptionWidget.border", "debugToolBar.background",
+    "diffEditor.insertedTextBackground", "diffEditor.removedTextBackground",
+    "dropdown.background", "dropdown.border", "dropdown.listBackground",
+    "editor.background", "editor.findMatchBackground",
+    "editor.findMatchHighlightBackground", "editor.foreground",
+    "editor.hoverHighlightBackground", "editor.lineHighlightBackground",
+    "editor.selectionBackground", "editor.selectionHighlightBackground",
+    "editor.wordHighlightBackground", "editor.wordHighlightStrongBackground",
+    "editorBracketHighlight.foreground1", "editorBracketHighlight.foreground2",
+    "editorBracketHighlight.foreground3", "editorCursor.foreground",
+    "editorGroup.border", "editorGroup.dropBackground",
+    "editorGroupHeader.tabsBackground", "editorHoverWidget.background",
+    "editorHoverWidget.border", "editorIndentGuide.activeBackground",
+    "editorIndentGuide.activeBackground1", "editorIndentGuide.background",
+    "editorIndentGuide.background1", "editorLineNumber.activeForeground",
+    "editorLineNumber.foreground", "editorLink.activeForeground",
+    "editorMarkerNavigation.background", "editorMarkerNavigationError.background",
+    "editorMarkerNavigationWarning.background", "editorSuggestWidget.background",
+    "editorSuggestWidget.border", "editorWhitespace.foreground",
+    "editorWidget.background", "errorForeground",
+    "extensionButton.prominentBackground",
+    "extensionButton.prominentHoverBackground", "focusBorder", "input.background",
+    "input.foreground", "input.placeholderForeground", "inputOption.activeBorder",
+    "inputValidation.errorBackground", "inputValidation.errorBorder",
+    "inputValidation.infoBackground", "inputValidation.infoBorder",
+    "inputValidation.warningBackground", "inputValidation.warningBorder",
+    "list.activeSelectionBackground", "list.activeSelectionForeground",
+    "list.dropBackground", "list.highlightForeground", "list.hoverBackground",
+    "list.inactiveSelectionBackground", "menu.background", "menu.foreground",
+    "minimap.selectionHighlight", "notebook.cellEditorBackground",
+    "panel.background", "panel.border", "panelTitle.activeBorder",
+    "panelTitle.activeForeground", "panelTitle.inactiveForeground",
+    "peekView.border", "peekViewEditor.background",
+    "peekViewEditor.matchHighlightBackground", "peekViewResult.background",
+    "peekViewResult.matchHighlightBackground", "peekViewResult.selectionBackground",
+    "peekViewTitle.background", "pickerGroup.border", "pickerGroup.foreground",
+    "ports.iconRunningProcessForeground", "progressBar.background",
+    "quickInputList.focusBackground", "scrollbar.shadow",
+    "scrollbarSlider.activeBackground", "scrollbarSlider.background",
+    "scrollbarSlider.hoverBackground", "selection.background",
+    "settings.focusedRowBackground", "sideBar.background",
+    "sideBarSectionHeader.background", "sideBarTitle.foreground",
+    "statusBar.background", "statusBar.debuggingBackground", "statusBar.foreground",
+    "statusBar.noFolderBackground", "statusBarItem.prominentBackground",
+    "statusBarItem.prominentHoverBackground", "statusBarItem.remoteBackground",
+    "tab.activeBackground", "tab.activeForeground", "tab.activeModifiedBorder",
+    "tab.border", "tab.inactiveBackground", "tab.inactiveForeground",
+    "tab.lastPinnedBorder", "terminal.ansiBlack", "terminal.ansiBlue",
+    "terminal.ansiBrightBlack", "terminal.ansiBrightBlue",
+    "terminal.ansiBrightCyan", "terminal.ansiBrightGreen",
+    "terminal.ansiBrightMagenta", "terminal.ansiBrightRed",
+    "terminal.ansiBrightWhite", "terminal.ansiBrightYellow", "terminal.ansiCyan",
+    "terminal.ansiGreen", "terminal.ansiMagenta", "terminal.ansiRed",
+    "terminal.ansiWhite", "terminal.ansiYellow", "terminal.background",
+    "terminal.inactiveSelectionBackground", "titleBar.activeBackground",
+    "titleBar.inactiveBackground", "walkThrough.embeddedEditorBackground",
+    "welcomePage.tileBackground", "widget.shadow",
+}
+
+
+VSCODE_FAMILY = ("vscode", "cursor", "antigravity")
+
+
+@pytest.fixture
+def vscode_theme(gruvbox):
+    import json
+
+    return json.loads(emit_theme(gruvbox, "vscode"))
+
+
+def test_vscode_output_is_valid_json_with_the_expected_shape(vscode_theme):
+    assert set(vscode_theme) == {
+        "name", "type", "semanticHighlighting", "colors", "tokenColors",
+    }
+    assert vscode_theme["type"] == "dark"
+    assert vscode_theme["colors"]["editor.background"] == "#282828"
+
+
+def test_every_vscode_colour_key_is_one_vscode_ships(vscode_theme):
+    unknown = set(vscode_theme["colors"]) - VSCODE_SHIPPED_COLORS
+    assert not unknown, f"keys not used by any shipped theme: {sorted(unknown)}"
+
+
+@pytest.mark.skipif(
+    not Path("/usr/lib/code/extensions").is_dir(),
+    reason="no local VS Code installation to cross-check against",
+)
+def test_the_embedded_key_list_still_matches_the_installed_vscode(vscode_theme):
+    """Catches VS Code renaming or dropping a key we rely on."""
+    import json as _json
+    import re as _re
+
+    live = set()
+    for path in Path("/usr/lib/code/extensions").glob("**/themes/*.json"):
+        raw = path.read_text()
+        raw = _re.sub(r"//[^\n]*", "", raw)
+        raw = _re.sub(r",(\s*[}\]])", r"\1", raw)
+        try:
+            live |= set(_json.loads(raw).get("colors", {}))
+        except ValueError:
+            continue
+    if not live:
+        pytest.skip("could not read any shipped theme")
+    assert not set(vscode_theme["colors"]) - live
+
+
+def test_vscode_terminal_colours_cover_the_whole_palette(gruvbox, vscode_theme):
+    colors = vscode_theme["colors"]
+    assert colors["terminal.ansiBlack"] == gruvbox.ansi[0].hex
+    assert colors["terminal.ansiBrightWhite"] == gruvbox.ansi[15].hex
+    assert len([k for k in colors if k.startswith("terminal.ansi")]) == 16
+
+
+def test_vscode_translucent_keys_carry_an_alpha_channel(vscode_theme):
+    for key in ("diffEditor.insertedTextBackground", "editor.findMatchBackground"):
+        assert len(vscode_theme["colors"][key]) == 9, key
+
+
+def test_vscode_token_colours_all_have_settings(vscode_theme):
+    for token in vscode_theme["tokenColors"]:
+        assert token["scope"]
+        assert token["settings"]
+
+
+def test_vscode_light_scheme_is_typed_light(gruvbox):
+    import json
+
+    gruvbox.background, gruvbox.foreground = gruvbox.foreground, gruvbox.background
+    assert json.loads(emit_theme(gruvbox, "vscode"))["type"] == "light"
+
+
+@pytest.mark.parametrize("fork", ["cursor", "antigravity"])
+def test_forks_produce_a_byte_identical_theme(gruvbox, fork):
+    """They are VS Code derivatives; only the install path differs."""
+    assert emit_theme(gruvbox, fork) == emit_theme(gruvbox, "vscode")
+
+
+@pytest.mark.parametrize("target", VSCODE_FAMILY)
+def test_each_fork_has_its_own_install_path(target):
+    paths = {t: get_editor(t).INSTALL_PATH for t in VSCODE_FAMILY}
+    assert len(set(paths.values())) == len(VSCODE_FAMILY)
+    assert get_editor(target).FILENAME == "{name}-color-theme.json"
+
+
+def test_fork_aliases_resolve():
+    assert get_editor("code").NAME == "vscode"
+    assert get_editor("ag").NAME == "antigravity"
+
+
+def test_to_all_reports_shared_filenames_instead_of_overwriting(gruvbox, tmp_path, capsys):
+    """The VS Code family writes one filename; that must not be silent."""
+    from cscx.cli import main
+
+    source = tmp_path / "src.conf"
+    source.write_text((FIXTURES / "gruvbox.kitty.conf").read_text())
+    out = tmp_path / "out"
+    assert main(["convert", str(source), "--to", "all", "-o", str(out),
+                 "--name", "Shared"]) == 0
+
+    errors = capsys.readouterr().err
+    assert errors.count("shares shared-color-theme.json") == 2
+    assert "identical" in errors
+    assert "DIFFERENT CONTENT" not in errors
+    assert len(list(out.glob("*-color-theme.json"))) == 1

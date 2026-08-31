@@ -11,8 +11,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 __all__ = [
-    "Group", "CORE", "TREESITTER", "LSP_LINKS",
-    "DIAGNOSTICS", "NEOVIM_UI", "HELIX",
+    "Group", "WorkbenchColor", "CORE", "TREESITTER", "LSP_LINKS",
+    "DIAGNOSTICS", "NEOVIM_UI", "HELIX", "EMACS",
+    "VSCODE_WORKBENCH", "VSCODE_TOKENS",
 ]
 
 
@@ -443,4 +444,278 @@ HELIX: tuple[Group, ...] = (
     _g("diagnostic.unnecessary", attrs=("dim",)),
     _g("diagnostic.deprecated", attrs=("strikethrough",)),
     _g("tabstop", bg="base02"),
+)
+
+
+# -- emacs ----------------------------------------------------------------
+#
+# Built-in faces only. Package faces (company, flycheck, magit) would be
+# guesswork about what the user has installed, and an unknown face in a theme
+# is silently inert rather than useful.
+
+EMACS: tuple[Group, ...] = (
+    _g("default", fg="base05", bg="base00"),
+    _g("cursor", bg="cursor|base05"),
+    _g("region", bg="selection_bg|base02"),
+    _g("highlight", bg="base02"),
+    _g("hl-line", bg="base01"),
+    _g("fringe", fg="base03", bg="base00"),
+    _g("vertical-border", fg="base02"),
+    _g("window-divider", fg="base02"),
+    _g("minibuffer-prompt", fg="base0D", attrs=("bold",)),
+    _g("header-line", fg="base04", bg="base01"),
+    _g("mode-line", fg="base04", bg="base02"),
+    _g("mode-line-inactive", fg="base03", bg="base01"),
+    _g("mode-line-buffer-id", fg="base0D", attrs=("bold",)),
+    _g("line-number", fg="base03", bg="base00"),
+    _g("line-number-current-line", fg="base04", bg="base01", attrs=("bold",)),
+    _g("fill-column-indicator", fg="base02"),
+    _g("link", fg="base0D", attrs=("underline",)),
+    _g("link-visited", fg="base0E", attrs=("underline",)),
+    _g("error", fg="base08", attrs=("bold",)),
+    _g("warning", fg="base0A"),
+    _g("success", fg="base0B"),
+    _g("shadow", fg="base03"),
+    _g("secondary-selection", bg="base01"),
+    _g("tooltip", fg="base05", bg="base01"),
+    _g("escape-glyph", fg="base0C"),
+    _g("homoglyph", fg="base0C"),
+    _g("trailing-whitespace", bg="base08"),
+    _g("isearch", fg="base01", bg="base09"),
+    _g("isearch-fail", fg="base00", bg="base08"),
+    _g("lazy-highlight", fg="base01", bg="base0A"),
+    _g("match", fg="base01", bg="base0A"),
+    _g("show-paren-match", bg="base03", attrs=("bold",)),
+    _g("show-paren-mismatch", fg="base00", bg="base08"),
+    _g("completions-common-part", fg="base0D"),
+    _g("widget-field", fg="base05", bg="base01"),
+
+    # Font lock, including the faces added in Emacs 29.
+    _g("font-lock-builtin-face", fg="base0C"),
+    _g("font-lock-comment-face", fg="base03", attrs=("italic",)),
+    _g("font-lock-comment-delimiter-face", fg="base03"),
+    _g("font-lock-doc-face", fg="base03", attrs=("italic",)),
+    _g("font-lock-constant-face", fg="base09"),
+    _g("font-lock-function-name-face", fg="base0D"),
+    _g("font-lock-keyword-face", fg="base0E"),
+    _g("font-lock-negation-char-face", fg="base08"),
+    _g("font-lock-preprocessor-face", fg="base0A"),
+    _g("font-lock-regexp-grouping-backslash", fg="base0C"),
+    _g("font-lock-regexp-grouping-construct", fg="base0C"),
+    _g("font-lock-string-face", fg="base0B"),
+    _g("font-lock-type-face", fg="base0A"),
+    _g("font-lock-variable-name-face", fg="base08"),
+    _g("font-lock-warning-face", fg="base08", attrs=("bold",)),
+    _g("font-lock-bracket-face", fg="base05"),
+    _g("font-lock-delimiter-face", fg="base05"),
+    _g("font-lock-escape-face", fg="base0C"),
+    _g("font-lock-function-call-face", fg="base0D"),
+    _g("font-lock-misc-punctuation-face", fg="base0F"),
+    _g("font-lock-number-face", fg="base09"),
+    _g("font-lock-operator-face", fg="base05"),
+    _g("font-lock-property-name-face", fg="base08"),
+    _g("font-lock-property-use-face", fg="base08"),
+    _g("font-lock-punctuation-face", fg="base05"),
+    _g("font-lock-regexp-face", fg="base0C"),
+    _g("font-lock-variable-use-face", fg="base08"),
+
+    # Diffs.
+    _g("diff-added", fg="base0B"),
+    _g("diff-removed", fg="base08"),
+    _g("diff-changed", fg="base0D"),
+    _g("diff-header", fg="base0A", bg="base01"),
+    _g("diff-file-header", fg="base0D", attrs=("bold",)),
+    _g("diff-hunk-header", fg="base0E", bg="base01"),
+    _g("diff-indicator-added", fg="base0B"),
+    _g("diff-indicator-removed", fg="base08"),
+    _g("diff-indicator-changed", fg="base0D"),
+
+    # Compilation and dired.
+    _g("compilation-error", fg="base08", attrs=("bold",)),
+    _g("compilation-warning", fg="base0A"),
+    _g("compilation-info", fg="base0B"),
+    _g("compilation-line-number", fg="base03"),
+    _g("dired-directory", fg="base0D"),
+    _g("dired-symlink", fg="base0C"),
+    _g("dired-header", fg="base0A", attrs=("bold",)),
+    _g("dired-marked", fg="base0E"),
+    _g("dired-flagged", fg="base08"),
+
+    # Whitespace and tabs.
+    _g("whitespace-space", fg="base02"),
+    _g("whitespace-tab", fg="base02"),
+    _g("whitespace-newline", fg="base02"),
+    _g("whitespace-trailing", bg="base08"),
+    _g("whitespace-line", bg="base01"),
+    _g("tab-bar", fg="base04", bg="base01"),
+    _g("tab-bar-tab", fg="base05", bg="base02"),
+    _g("tab-bar-tab-inactive", fg="base03", bg="base01"),
+    _g("tab-line", fg="base04", bg="base01"),
+)
+
+
+# -- vscode ---------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class WorkbenchColor:
+    """One entry of a VS Code theme's flat `colors` object."""
+
+    key: str
+    role: str
+    #: Optional 0-255 alpha, appended as `#rrggbbaa`. VS Code uses translucent
+    #: fills for diff and highlight backgrounds so text stays legible on them.
+    alpha: int | None = None
+
+
+def _w(key, role, alpha=None) -> WorkbenchColor:
+    return WorkbenchColor(key, role, alpha)
+
+
+# Every key below appears in a theme Microsoft ships with VS Code, which is
+# what proves it is real. An unrecognised key is not an error in VS Code -- it
+# is silently ignored -- so a typo here would quietly do nothing.
+VSCODE_WORKBENCH: tuple[WorkbenchColor, ...] = (
+    _w("editor.background", "base00"),
+    _w("editor.foreground", "base05"),
+    _w("editorCursor.foreground", "cursor|base05"),
+    _w("editor.selectionBackground", "selection_bg|base02"),
+    _w("editor.selectionHighlightBackground", "base02"),
+    _w("editor.lineHighlightBackground", "base01"),
+    _w("editor.findMatchBackground", "base0A", 0x66),
+    _w("editor.findMatchHighlightBackground", "base0A", 0x33),
+    _w("editor.hoverHighlightBackground", "base02"),
+    _w("editor.wordHighlightBackground", "base02"),
+    _w("editor.wordHighlightStrongBackground", "base03"),
+    _w("editorLineNumber.foreground", "base03"),
+    _w("editorLineNumber.activeForeground", "base04"),
+    _w("editorWhitespace.foreground", "base02"),
+    _w("editorIndentGuide.background1", "base01"),
+    _w("editorIndentGuide.activeBackground1", "base02"),
+    _w("editorLink.activeForeground", "base0D"),
+    _w("editorBracketHighlight.foreground1", "base0D"),
+    _w("editorBracketHighlight.foreground2", "base0E"),
+    _w("editorBracketHighlight.foreground3", "base0A"),
+
+    _w("editorWidget.background", "base01"),
+    _w("editorSuggestWidget.background", "base01"),
+    _w("editorSuggestWidget.border", "base02"),
+    _w("editorHoverWidget.background", "base01"),
+    _w("editorHoverWidget.border", "base02"),
+    _w("widget.shadow", "base00"),
+    _w("scrollbar.shadow", "base00"),
+    _w("scrollbarSlider.background", "base02"),
+    _w("scrollbarSlider.hoverBackground", "base03"),
+    _w("scrollbarSlider.activeBackground", "base04"),
+    _w("minimap.selectionHighlight", "selection_bg|base02"),
+
+    _w("sideBar.background", "base00"),
+    _w("sideBarTitle.foreground", "base04"),
+    _w("sideBarSectionHeader.background", "base01"),
+    _w("activityBar.background", "base00"),
+    _w("activityBar.foreground", "base05"),
+    _w("activityBarBadge.background", "base0D"),
+    _w("statusBar.background", "base01"),
+    _w("statusBar.foreground", "base04"),
+    _w("statusBar.noFolderBackground", "base01"),
+    _w("statusBar.debuggingBackground", "base0E"),
+    _w("titleBar.activeBackground", "base01"),
+    _w("titleBar.inactiveBackground", "base00"),
+    _w("tab.activeBackground", "base00"),
+    _w("tab.activeForeground", "base05"),
+    _w("tab.inactiveBackground", "base01"),
+    _w("tab.inactiveForeground", "base03"),
+    _w("tab.border", "base02"),
+    _w("editorGroup.border", "base02"),
+    _w("editorGroupHeader.tabsBackground", "base01"),
+    _w("panel.background", "base00"),
+    _w("panel.border", "base02"),
+    _w("panelTitle.activeForeground", "base05"),
+    _w("panelTitle.inactiveForeground", "base03"),
+    _w("panelTitle.activeBorder", "base0D"),
+
+    _w("list.activeSelectionBackground", "base02"),
+    _w("list.activeSelectionForeground", "base05"),
+    _w("list.inactiveSelectionBackground", "base01"),
+    _w("list.hoverBackground", "base01"),
+    _w("list.highlightForeground", "base0D"),
+    _w("quickInputList.focusBackground", "base02"),
+    _w("input.background", "base01"),
+    _w("input.foreground", "base05"),
+    _w("input.placeholderForeground", "base03"),
+    _w("dropdown.background", "base01"),
+    _w("dropdown.border", "base02"),
+    _w("menu.background", "base01"),
+    _w("menu.foreground", "base05"),
+    _w("badge.background", "base0D"),
+    _w("badge.foreground", "base00"),
+    _w("button.background", "base0D"),
+    _w("focusBorder", "base0D"),
+    _w("progressBar.background", "base0D"),
+    _w("pickerGroup.foreground", "base0A"),
+    _w("pickerGroup.border", "base02"),
+    _w("selection.background", "selection_bg|base02"),
+
+    _w("errorForeground", "base08"),
+    _w("inputValidation.errorBackground", "base00"),
+    _w("inputValidation.errorBorder", "base08"),
+    _w("inputValidation.warningBackground", "base00"),
+    _w("inputValidation.warningBorder", "base0A"),
+    _w("inputValidation.infoBackground", "base00"),
+    _w("inputValidation.infoBorder", "base0D"),
+    _w("editorMarkerNavigation.background", "base01"),
+    _w("editorMarkerNavigationError.background", "base08"),
+    _w("editorMarkerNavigationWarning.background", "base0A"),
+
+    _w("diffEditor.insertedTextBackground", "base0B", 0x33),
+    _w("diffEditor.removedTextBackground", "base08", 0x33),
+
+    _w("peekView.border", "base0D"),
+    _w("peekViewEditor.background", "base01"),
+    _w("peekViewResult.background", "base01"),
+    _w("peekViewTitle.background", "base01"),
+    _w("peekViewEditor.matchHighlightBackground", "base0A", 0x33),
+    _w("peekViewResult.matchHighlightBackground", "base0A", 0x33),
+    _w("peekViewResult.selectionBackground", "base02"),
+
+    _w("terminal.background", "base00"),
+)
+
+# TextMate scopes, each verified to appear in a theme VS Code ships.
+VSCODE_TOKENS: tuple[Group, ...] = (
+    _g("comment", fg="base03", attrs=("italic",)),
+    _g("string", fg="base0B"),
+    _g("string.regexp", fg="base0C"),
+    _g("constant.numeric", fg="base09"),
+    _g("constant.language", fg="base09"),
+    _g("constant.character.escape", fg="base0C"),
+    _g("constant.other.symbol", fg="base0C"),
+    _g("variable", fg="base08"),
+    _g("variable.parameter", fg="base08"),
+    _g("variable.language", fg="base09"),
+    _g("entity.name.function", fg="base0D"),
+    _g("entity.name.type", fg="base0A"),
+    _g("entity.name.class", fg="base0A"),
+    _g("entity.name.namespace", fg="base0A"),
+    _g("entity.name.tag", fg="base08"),
+    _g("entity.other.attribute-name", fg="base0A"),
+    _g("keyword", fg="base0E"),
+    _g("keyword.control", fg="base0E"),
+    _g("keyword.operator", fg="base05"),
+    _g("storage", fg="base0E"),
+    _g("storage.type", fg="base0A"),
+    _g("support.function", fg="base0D"),
+    _g("support.class", fg="base0A"),
+    _g("support.type", fg="base0A"),
+    _g("support.constant", fg="base09"),
+    _g("support.variable", fg="base08"),
+    _g("punctuation.definition.tag", fg="base0F"),
+    _g("markup.heading", fg="base0D", attrs=("bold",)),
+    _g("markup.bold", attrs=("bold",)),
+    _g("markup.italic", attrs=("italic",)),
+    _g("markup.inserted", fg="base0B"),
+    _g("markup.deleted", fg="base08"),
+    _g("markup.changed", fg="base0A"),
+    _g("meta.diff", fg="base0D"),
+    _g("invalid", fg="base08"),
 )
