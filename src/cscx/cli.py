@@ -8,6 +8,8 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .emitters import EMITTERS, get_emitter
+from .fill import fill
 from .formats import PARSERS, detect_format, get_parser, parse_file
 from .palette import Palette, ANSI_NAMES
 
@@ -39,6 +41,27 @@ def build_parser() -> argparse.ArgumentParser:
     sniff.add_argument("path", type=Path)
     sniff.add_argument("--json", action="store_true")
 
+    convert = subparsers.add_parser("convert", help="convert a scheme to another format")
+    convert.add_argument("path", type=Path, help="scheme or config file to read")
+    convert.add_argument(
+        "-t", "--to", dest="target", required=True,
+        metavar="FORMAT", help="output format, or 'all' to write every format",
+    )
+    convert.add_argument(
+        "-f", "--from", dest="source_format", choices=_format_names(),
+        help="skip detection and parse as this format",
+    )
+    convert.add_argument(
+        "-o", "--output", type=Path,
+        help="write here instead of stdout; a directory when --to all",
+    )
+    convert.add_argument(
+        "--fill", action="store_true",
+        help="derive values the source omitted (cursor=fg, selection=inverse, "
+             "bright=normal) and mark each one as derived",
+    )
+    convert.add_argument("--name", help="override the scheme name")
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -53,6 +76,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_detect(args)
         case "parse":
             return _cmd_parse(args)
+        case "convert":
+            return _cmd_convert(args)
     return 2
 
 
@@ -103,6 +128,76 @@ def _cmd_parse(args: argparse.Namespace) -> int:
     if gaps := palette.missing():
         print(f"cscx: {len(gaps)} value(s) not set: {', '.join(gaps)}", file=sys.stderr)
     return 0
+
+
+def _cmd_convert(args: argparse.Namespace) -> int:
+    try:
+        palette = parse_file(args.path, format=args.source_format)
+    except (OSError, ValueError, KeyError) as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    if args.name:
+        palette.name = args.name
+
+    derived = {}
+    if args.fill:
+        palette, derived = fill(palette)
+
+    targets = sorted(EMITTERS) if args.target == "all" else [args.target]
+    try:
+        emitters = [get_emitter(t) for t in targets]
+    except KeyError as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    if args.target == "all":
+        if args.output is None:
+            print("cscx: --to all needs -o DIRECTORY", file=sys.stderr)
+            return 1
+        return _write_all(palette, emitters, derived, args.output)
+
+    emitter = emitters[0]
+    rendered = emitter.emit(palette, derived)
+    _report_gaps(palette, emitter, derived)
+
+    if args.output is None:
+        if emitter.BINARY:
+            sys.stdout.buffer.write(rendered)
+        else:
+            sys.stdout.write(rendered)
+        return 0
+
+    _write(args.output, rendered)
+    print(f"wrote {args.output}", file=sys.stderr)
+    return 0
+
+
+def _write_all(palette, emitters, derived, directory: Path) -> int:
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = (palette.name or "scheme").replace(" ", "_").replace("/", "-")
+    for emitter in emitters:
+        target = directory / f"{stem}.{emitter.NAME}{emitter.EXTENSION}"
+        _write(target, emitter.emit(palette, derived))
+        print(f"wrote {target}", file=sys.stderr)
+    return 0
+
+
+def _write(path: Path, rendered: str | bytes) -> None:
+    if isinstance(rendered, bytes):
+        path.write_bytes(rendered)
+    else:
+        path.write_text(rendered)
+
+
+def _report_gaps(palette: Palette, emitter, derived: dict) -> None:
+    """Say on stderr what was derived, and what stayed unset."""
+    if derived:
+        print(f"cscx: derived {len(derived)} value(s): "
+              f"{', '.join(sorted(derived))}", file=sys.stderr)
+    if gaps := palette.missing():
+        print(f"cscx: {len(gaps)} value(s) unset and omitted from the output: "
+              f"{', '.join(gaps)}", file=sys.stderr)
 
 
 def _swatch(color, width: int = 4) -> str:

@@ -39,7 +39,11 @@ def detect(data: bytes | str, filename: str | None = None) -> float:
 
 def parse(data: bytes | str, name: str | None = None) -> Palette:
     text = decode(data)
-    parser = configparser.ConfigParser(strict=False, interpolation=None)
+    # foot accepts trailing `# comment` after a value, so configparser has to
+    # be told to strip them; its default is to keep them in the value.
+    parser = configparser.ConfigParser(
+        strict=False, interpolation=None, inline_comment_prefixes=("#", ";"),
+    )
     parser.optionxform = str
     parser.read_string(f"[{_TOP_SECTION}]\n{text}")
 
@@ -66,6 +70,11 @@ def parse(data: bytes | str, name: str | None = None) -> Palette:
                 palette.set_indexed(index, _safe_color(value))
             continue
 
+        if key == "cursor":
+            # `cursor=<text> <cursor>`, in that order.
+            _read_cursor_pair(palette, value)
+            continue
+
         if key in _SCALARS:
             setattr(palette, _SCALARS[key], _safe_color(value))
         elif key == "alpha":
@@ -76,16 +85,20 @@ def parse(data: bytes | str, name: str | None = None) -> Palette:
         elif (color := _safe_color(value)) is not None:
             palette.extras.setdefault("foot", {})[key] = color.hex
 
-    # foot writes the cursor as `color=<text> <cursor>`, in that order.
-    for section in ("cursor", "colors"):
-        if parser.has_section(section) and parser.has_option(section, "color"):
-            parts = parser.get(section, "color").split()
-            if len(parts) == 2:
-                palette.cursor_text = _safe_color(parts[0])
-                palette.cursor = _safe_color(parts[1])
-            break
+    # Configs predating foot 1.27 put it in its own section instead.
+    if palette.cursor is None and parser.has_section("cursor"):
+        if parser.has_option("cursor", "color"):
+            _read_cursor_pair(palette, parser.get("cursor", "color"))
 
     return palette
+
+
+def _read_cursor_pair(palette: Palette, value: str) -> None:
+    """Read foot's two-value cursor spelling: text colour first, then cursor."""
+    parts = value.split()
+    if len(parts) == 2:
+        palette.cursor_text = _safe_color(parts[0])
+        palette.cursor = _safe_color(parts[1])
 
 
 def _safe_color(value: str):
