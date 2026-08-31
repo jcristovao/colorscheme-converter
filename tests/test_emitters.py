@@ -239,3 +239,13 @@ def test_emitters_and_parsers_cover_the_same_formats():
     from cscx.formats import _MODULES as parser_modules
 
     assert {m.NAME for m in parser_modules} == set(EMITTERS)
+
+
+def test_a_hostile_scheme_name_survives_every_terminal_format(tmp_path):
+    """A quote or newline in the name must not corrupt the generated file."""
+    original = parse_file(FIXTURES / "gruvbox.kitty.conf")
+    original.name = 'evil" name\nwith \\ backslash'
+
+    for target in TARGETS:
+        reparsed, _ = round_trip(original, target, tmp_path)
+        assert reparsed.ansi == original.ansi, f"{target} corrupted by the name"

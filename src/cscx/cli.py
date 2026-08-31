@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from . import __version__
+from .editors import CONTRAST_TARGET, EDITORS, EditorPaletteError, get_editor
 from .emitters import EMITTERS, get_emitter
 from .fill import fill
 from .formats import PARSERS, detect_format, get_parser, parse_file
@@ -15,7 +16,13 @@ from .palette import Palette, ANSI_NAMES
 
 
 def _format_names() -> list[str]:
+    """Formats that can be read. Editors are write-only."""
     return sorted({parser.NAME for parser in PARSERS.values()})
+
+
+def _target_names() -> list[str]:
+    """Everything that can be written: terminal formats plus editors."""
+    return sorted(set(EMITTERS) | set(EDITORS))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -44,8 +51,8 @@ def build_parser() -> argparse.ArgumentParser:
     convert = subparsers.add_parser("convert", help="convert a scheme to another format")
     convert.add_argument("path", type=Path, help="scheme or config file to read")
     convert.add_argument(
-        "-t", "--to", dest="target", required=True,
-        metavar="FORMAT", help="output format, or 'all' to write every format",
+        "-t", "--to", dest="target", required=True, metavar="FORMAT",
+        help="output format or editor, or 'all' to write every target",
     )
     convert.add_argument(
         "-f", "--from", dest="source_format", choices=_format_names(),
@@ -59,6 +66,15 @@ def build_parser() -> argparse.ArgumentParser:
         "--fill", action="store_true",
         help="derive values the source omitted (cursor=fg, selection=inverse, "
              "bright=normal) and mark each one as derived",
+    )
+    convert.add_argument(
+        "--terminal-exact", action="store_true",
+        help="editors only: use just the 16 palette colors, deriving no UI shades",
+    )
+    convert.add_argument(
+        "--contrast", type=float, default=None, metavar="RATIO",
+        help="editors only: minimum contrast for comments against the background "
+             "(default 4.5, WCAG AA); 0 disables the check",
     )
     convert.add_argument("--name", help="override the scheme name")
 
@@ -87,10 +103,18 @@ def _cmd_formats() -> int:
         seen.setdefault(parser.NAME, [])
         if alias != parser.NAME:
             seen[parser.NAME].append(alias)
+    print("terminal formats (read and written)")
     for name in sorted(seen):
         aliases = ", ".join(sorted(seen[name]))
         extensions = " ".join(get_parser(name).EXTENSIONS)
-        print(f"{name:18} {extensions:24} {'aliases: ' + aliases if aliases else ''}".rstrip())
+        print(f"  {name:18} {extensions:24} "
+              f"{'aliases: ' + aliases if aliases else ''}".rstrip())
+
+    print()
+    print("editors (written only)")
+    for name in sorted(EDITORS):
+        editor = get_editor(name)
+        print(f"  {name:18} {editor.EXTENSION:24} {editor.INSTALL_PATH.format(name='NAME')}")
     return 0
 
 
@@ -144,9 +168,9 @@ def _cmd_convert(args: argparse.Namespace) -> int:
     if args.fill:
         palette, derived = fill(palette)
 
-    targets = sorted(EMITTERS) if args.target == "all" else [args.target]
+    targets = _target_names() if args.target == "all" else [args.target]
     try:
-        emitters = [get_emitter(t) for t in targets]
+        writers = [_writer(t, args, derived) for t in targets]
     except KeyError as exc:
         print(f"cscx: {exc}", file=sys.stderr)
         return 1
@@ -155,14 +179,19 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         if args.output is None:
             print("cscx: --to all needs -o DIRECTORY", file=sys.stderr)
             return 1
-        return _write_all(palette, emitters, derived, args.output)
+        return _write_all(palette, writers, args.output)
 
-    emitter = emitters[0]
-    rendered = emitter.emit(palette, derived)
-    _report_gaps(palette, emitter, derived)
+    name, extension, binary, render = writers[0]
+    try:
+        rendered = render(palette)
+    except EditorPaletteError as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    _report_gaps(palette, derived, is_editor=name in EDITORS)
 
     if args.output is None:
-        if emitter.BINARY:
+        if binary:
             sys.stdout.buffer.write(rendered)
         else:
             sys.stdout.write(rendered)
@@ -173,14 +202,49 @@ def _cmd_convert(args: argparse.Namespace) -> int:
     return 0
 
 
-def _write_all(palette, emitters, derived, directory: Path) -> int:
+def _writer(target: str, args: argparse.Namespace, derived: dict):
+    """Resolve a target name to `(name, extension, binary, render)`.
+
+    Terminal emitters and editor writers take different arguments, so they are
+    wrapped into one shape here rather than complicating either protocol.
+    """
+    if target in EDITORS:
+        editor = get_editor(target)
+        return (
+            editor.NAME,
+            editor.EXTENSION,
+            editor.BINARY,
+            lambda palette: editor.emit(
+                palette,
+                terminal_exact=args.terminal_exact,
+                contrast_target=(
+                    CONTRAST_TARGET if args.contrast is None else args.contrast
+                ),
+            ),
+        )
+    emitter = get_emitter(target)
+    return (
+        emitter.NAME,
+        emitter.EXTENSION,
+        emitter.BINARY,
+        lambda palette: emitter.emit(palette, derived),
+    )
+
+
+def _write_all(palette, writers, directory: Path) -> int:
     directory.mkdir(parents=True, exist_ok=True)
     stem = (palette.name or "scheme").replace(" ", "_").replace("/", "-")
-    for emitter in emitters:
-        target = directory / f"{stem}.{emitter.NAME}{emitter.EXTENSION}"
-        _write(target, emitter.emit(palette, derived))
+    failures = 0
+    for name, extension, _binary, render in writers:
+        target = directory / f"{stem}.{name}{extension}"
+        try:
+            _write(target, render(palette))
+        except EditorPaletteError as exc:
+            print(f"cscx: skipped {name}: {exc}", file=sys.stderr)
+            failures += 1
+            continue
         print(f"wrote {target}", file=sys.stderr)
-    return 0
+    return 1 if failures else 0
 
 
 def _write(path: Path, rendered: str | bytes) -> None:
@@ -190,12 +254,14 @@ def _write(path: Path, rendered: str | bytes) -> None:
         path.write_text(rendered)
 
 
-def _report_gaps(palette: Palette, emitter, derived: dict) -> None:
+def _report_gaps(palette: Palette, derived: dict, *, is_editor: bool = False) -> None:
     """Say on stderr what was derived, and what stayed unset."""
     if derived:
         print(f"cscx: derived {len(derived)} value(s): "
               f"{', '.join(sorted(derived))}", file=sys.stderr)
     if gaps := palette.missing():
+        # An editor theme cannot be produced at all with gaps, so it never
+        # reaches here; for terminal formats the keys are simply left out.
         print(f"cscx: {len(gaps)} value(s) unset and omitted from the output: "
               f"{', '.join(gaps)}", file=sys.stderr)
 

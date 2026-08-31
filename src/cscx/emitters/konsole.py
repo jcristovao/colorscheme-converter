@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .._text import single_line
 from ..color import Color, ColorParseError, parse_color
 from ..fill import Derivations
 from ..palette import Palette
@@ -31,7 +32,7 @@ def emit(palette: Palette, derived: Derivations | None = None) -> str:
     # konsole's parser wants a [General] block; Description is where the
     # scheme name lives, and doubles as the provenance line.
     lines.append("[General]")
-    lines.append(f"Description={palette.name or 'cscx'}")
+    lines.append(f"Description={single_line(palette.name) or 'cscx'}")
     for key in ("Opacity", "Blur", "Wallpaper", "ColorRandomization"):
         if key in extras:
             lines.append(f"{key}={extras[key]}")

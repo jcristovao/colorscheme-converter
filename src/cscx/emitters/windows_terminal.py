@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 
+from .._text import single_line
 from ..fill import Derivations
 from ..palette import ANSI_NAMES, Palette
 
@@ -25,7 +26,7 @@ _SCALARS = (
 
 
 def emit(palette: Palette, derived: Derivations | None = None) -> str:
-    scheme: dict[str, str] = {"name": palette.name or "cscx"}
+    scheme: dict[str, str] = {"name": single_line(palette.name) or "cscx"}
 
     for key, field in _SCALARS:
         if (color := getattr(palette, field)) is not None:

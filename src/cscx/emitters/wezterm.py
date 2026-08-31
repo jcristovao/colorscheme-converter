@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .._text import toml_string
 from ..fill import Derivations
 from ..palette import Palette
 from ._util import header, note
@@ -26,7 +27,7 @@ def emit(palette: Palette, derived: Derivations | None = None) -> str:
     if palette.name:
         lines.append("")
         lines.append("[metadata]")
-        lines.append(f'name = "{palette.name}"')
+        lines.append(f"name = {toml_string(palette.name)}")
 
     lines.append("")
     lines.append("[colors]")

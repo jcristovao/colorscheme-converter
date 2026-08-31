@@ -5,7 +5,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-__all__ = ["Color", "ColorParseError", "parse_color"]
+__all__ = [
+    "Color", "ColorParseError", "parse_color",
+    "mix", "luminance", "contrast_ratio", "is_dark",
+]
 
 
 class ColorParseError(ValueError):
@@ -220,3 +223,90 @@ def parse_color(raw: str | int | float | None) -> Color | None:
         return Color.from_int(named)
 
     raise ColorParseError(f"unrecognised color: {raw!r}")
+
+
+# -- perceptual helpers ---------------------------------------------------
+#
+# The editor layer synthesises UI shades that no terminal palette contains,
+# and has to prove they stay readable. Both jobs need light-linear values:
+# blending in raw sRGB darkens midpoints visibly, and WCAG contrast is
+# defined on linearised channels.
+
+
+def _to_linear(channel: int) -> float:
+    value = channel / 255
+    return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
+
+
+def _from_linear(value: float) -> int:
+    value = max(0.0, min(1.0, value))
+    encoded = 12.92 * value if value <= 0.0031308 else 1.055 * value ** (1 / 2.4) - 0.055
+    return max(0, min(255, round(encoded * 255)))
+
+
+def _to_oklab(color: Color) -> tuple[float, float, float]:
+    """sRGB -> OKLab, via linear sRGB and the LMS cone response."""
+    r, g, b = (_to_linear(c) for c in (color.r, color.g, color.b))
+
+    long = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    medium = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    short = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+
+    l_, m_, s_ = (v ** (1 / 3) if v > 0 else -((-v) ** (1 / 3))
+                  for v in (long, medium, short))
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _from_oklab(lab: tuple[float, float, float]) -> Color:
+    """OKLab -> sRGB, clipping any out-of-gamut result to the cube."""
+    lightness, green_red, blue_yellow = lab
+
+    l_ = lightness + 0.3963377774 * green_red + 0.2158037573 * blue_yellow
+    m_ = lightness - 0.1055613458 * green_red - 0.0638541728 * blue_yellow
+    s_ = lightness - 0.0894841775 * green_red - 1.2914855480 * blue_yellow
+    long, medium, short = l_ ** 3, m_ ** 3, s_ ** 3
+
+    return Color(
+        _from_linear(4.0767416621 * long - 3.3077115913 * medium + 0.2309699292 * short),
+        _from_linear(-1.2684380046 * long + 2.6097574011 * medium - 0.3413193965 * short),
+        _from_linear(-0.0041960863 * long - 0.7034186147 * medium + 1.7076147010 * short),
+    )
+
+
+def mix(a: Color, b: Color, t: float) -> Color:
+    """Blend `a` toward `b` by `t` (0.0-1.0), interpolating in OKLab.
+
+    OKLab rather than sRGB or linear light because the editor layer wants an
+    *evenly stepped* ramp: equal `t` increments should look equally spaced.
+    Linear-light blending is physically right for compositing but visibly
+    overshoots the midpoint -- 8% toward the foreground came out lighter than
+    the hand-picked cursorline of the scheme it was derived from.
+    """
+    t = max(0.0, min(1.0, t))
+    first, second = _to_oklab(a), _to_oklab(b)
+    return _from_oklab(tuple(x * (1 - t) + y * t for x, y in zip(first, second)))
+
+
+def luminance(color: Color) -> float:
+    """WCAG relative luminance, 0.0 (black) to 1.0 (white)."""
+    return (
+        0.2126 * _to_linear(color.r)
+        + 0.7152 * _to_linear(color.g)
+        + 0.0722 * _to_linear(color.b)
+    )
+
+
+def contrast_ratio(a: Color, b: Color) -> float:
+    """WCAG contrast ratio between two colors, 1.0 (identical) to 21.0."""
+    first, second = luminance(a), luminance(b)
+    lighter, darker = max(first, second), min(first, second)
+    return (lighter + 0.05) / (darker + 0.05)
+
+
+def is_dark(color: Color) -> bool:
+    """Whether a color reads as dark, for choosing `set background=`."""
+    return luminance(color) < 0.5

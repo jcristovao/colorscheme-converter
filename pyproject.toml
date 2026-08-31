@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cscx"
-version = "0.2.0"
-description = "Convert terminal color schemes between nine formats via one canonical palette"
+version = "0.3.0"
+description = "Convert terminal color schemes between nine formats, and into vim and neovim themes"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

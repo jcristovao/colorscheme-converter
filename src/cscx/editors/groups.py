@@ -1,0 +1,280 @@
+"""Highlight group tables, shared by the vim and neovim writers.
+
+Colors are named by base16 role, never by hue, so these tables stay readable
+and match the conventions every base16 template already uses. A value may be a
+fallback chain -- `"selection_bg|base02"` takes the terminal's own selection
+color when the source scheme had one, and the derived shade when it did not.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+__all__ = ["Group", "CORE", "TREESITTER", "LSP_LINKS", "DIAGNOSTICS", "NEOVIM_UI"]
+
+
+@dataclass(frozen=True, slots=True)
+class Group:
+    name: str
+    fg: str | None = None
+    bg: str | None = None
+    #: Underline/undercurl color (`guisp`), GUI and truecolor only.
+    sp: str | None = None
+    attrs: tuple[str, ...] = ()
+    #: When set, the group is an alias and every other field is ignored.
+    link: str | None = None
+
+
+def _g(name, fg=None, bg=None, sp=None, attrs=(), link=None) -> Group:
+    return Group(name, fg, bg, sp, tuple(attrs), link)
+
+
+# -- groups every vim and neovim understands ------------------------------
+
+CORE: tuple[Group, ...] = (
+    _g("Normal", fg="base05", bg="base00"),
+    _g("NormalNC", link="Normal"),
+
+    # Syntax.
+    _g("Comment", fg="base03", attrs=("italic",)),
+    _g("Constant", fg="base09"),
+    _g("String", fg="base0B"),
+    _g("Character", fg="base08"),
+    _g("Number", fg="base09"),
+    _g("Boolean", fg="base09"),
+    _g("Float", fg="base09"),
+    _g("Identifier", fg="base08"),
+    _g("Function", fg="base0D"),
+    _g("Statement", fg="base0E"),
+    _g("Conditional", fg="base0E"),
+    _g("Repeat", fg="base0E"),
+    _g("Label", fg="base0A"),
+    _g("Operator", fg="base05"),
+    _g("Keyword", fg="base0E"),
+    _g("Exception", fg="base08"),
+    _g("PreProc", fg="base0A"),
+    _g("Include", fg="base0D"),
+    _g("Define", fg="base0E"),
+    _g("Macro", fg="base08"),
+    _g("PreCondit", fg="base0A"),
+    _g("Type", fg="base0A"),
+    _g("StorageClass", fg="base0A"),
+    _g("Structure", fg="base0E"),
+    _g("Typedef", fg="base0A"),
+    _g("Special", fg="base0C"),
+    _g("SpecialChar", fg="base0F"),
+    _g("Tag", fg="base0A"),
+    _g("Delimiter", fg="base0F"),
+    _g("SpecialComment", fg="base0C"),
+    _g("Debug", fg="base08"),
+    _g("Underlined", fg="base08", attrs=("underline",)),
+    _g("Ignore", fg="base00"),
+    _g("Error", fg="base00", bg="base08"),
+    _g("Todo", fg="base0A", bg="base01", attrs=("bold",)),
+
+    # Editor chrome.
+    _g("ColorColumn", bg="base01"),
+    _g("Conceal", fg="base0C"),
+    _g("Cursor", fg="cursor_text|base00", bg="cursor|base05"),
+    _g("CursorColumn", bg="base01"),
+    _g("CursorLine", bg="base01"),
+    _g("CursorLineNr", fg="base04", bg="base01", attrs=("bold",)),
+    _g("Directory", fg="base0D"),
+    _g("EndOfBuffer", fg="base01"),
+    _g("ErrorMsg", fg="base08", bg="base00"),
+    _g("FoldColumn", fg="base0C", bg="base01"),
+    _g("Folded", fg="base03", bg="base01"),
+    _g("IncSearch", fg="base01", bg="base09"),
+    _g("LineNr", fg="base03", bg="base00"),
+    _g("MatchParen", bg="base03", attrs=("bold",)),
+    _g("ModeMsg", fg="base0B"),
+    _g("MoreMsg", fg="base0B"),
+    _g("NonText", fg="base03"),
+    _g("Pmenu", fg="base05", bg="base01"),
+    _g("PmenuSbar", bg="base02"),
+    _g("PmenuSel", fg="base01", bg="base05"),
+    _g("PmenuThumb", bg="base05"),
+    _g("Question", fg="base0D"),
+    _g("QuickFixLine", bg="base01"),
+    _g("Search", fg="base01", bg="base0A"),
+    _g("SignColumn", fg="base03", bg="base00"),
+    _g("SpecialKey", fg="base03"),
+    _g("SpellBad", sp="base08", attrs=("undercurl",)),
+    _g("SpellCap", sp="base0D", attrs=("undercurl",)),
+    _g("SpellLocal", sp="base0C", attrs=("undercurl",)),
+    _g("SpellRare", sp="base0E", attrs=("undercurl",)),
+    _g("StatusLine", fg="base04", bg="base02"),
+    _g("StatusLineNC", fg="base03", bg="base01"),
+    _g("TabLine", fg="base03", bg="base01"),
+    _g("TabLineFill", fg="base03", bg="base01"),
+    _g("TabLineSel", fg="base0B", bg="base01"),
+    _g("Title", fg="base0D", attrs=("bold",)),
+    _g("VertSplit", fg="base02", bg="base00"),
+    _g("Visual", fg="selection_fg", bg="selection_bg|base02"),
+    _g("VisualNOS", fg="base08"),
+    _g("WarningMsg", fg="base08"),
+    _g("Whitespace", fg="base03"),
+    _g("WildMenu", fg="base00", bg="base05"),
+
+    # Diffs.
+    _g("DiffAdd", fg="base0B", bg="base01"),
+    _g("DiffChange", fg="base03", bg="base01"),
+    _g("DiffDelete", fg="base08", bg="base01"),
+    _g("DiffText", fg="base0D", bg="base01"),
+    _g("diffAdded", fg="base0B"),
+    _g("diffRemoved", fg="base08"),
+    _g("diffChanged", fg="base0D"),
+    _g("diffFile", fg="base0A"),
+    _g("diffLine", fg="base0C"),
+)
+
+# -- neovim-only interface groups -----------------------------------------
+
+NEOVIM_UI: tuple[Group, ...] = (
+    _g("WinSeparator", fg="base02", bg="base00"),
+    _g("NormalFloat", fg="base05", bg="base01"),
+    _g("FloatBorder", fg="base02", bg="base01"),
+    _g("FloatTitle", fg="base0D", bg="base01", attrs=("bold",)),
+    _g("WinBar", fg="base04", bg="base01", attrs=("bold",)),
+    _g("WinBarNC", fg="base03", bg="base01"),
+    _g("MsgArea", fg="base05", bg="base00"),
+    _g("MsgSeparator", fg="base02", bg="base00"),
+    _g("Substitute", fg="base01", bg="base08"),
+    _g("LspInlayHint", fg="base03", bg="base01", attrs=("italic",)),
+    _g("LspReferenceText", bg="base02"),
+    _g("LspReferenceRead", bg="base02"),
+    _g("LspReferenceWrite", bg="base02"),
+    _g("LspSignatureActiveParameter", fg="base0A", attrs=("bold",)),
+)
+
+# -- treesitter captures (neovim 0.9+ naming) -----------------------------
+
+TREESITTER: tuple[Group, ...] = (
+    _g("@variable", fg="base08"),
+    _g("@variable.builtin", fg="base09"),
+    _g("@variable.parameter", fg="base08"),
+    _g("@variable.member", fg="base08"),
+    _g("@constant", fg="base09"),
+    _g("@constant.builtin", fg="base09"),
+    _g("@constant.macro", fg="base08"),
+    _g("@module", fg="base0A"),
+    _g("@label", fg="base0A"),
+    _g("@string", fg="base0B"),
+    _g("@string.escape", fg="base0C"),
+    _g("@string.regexp", fg="base0C"),
+    _g("@string.special", fg="base0C"),
+    _g("@character", fg="base08"),
+    _g("@character.special", fg="base0F"),
+    _g("@boolean", fg="base09"),
+    _g("@number", fg="base09"),
+    _g("@number.float", fg="base09"),
+    _g("@type", fg="base0A"),
+    _g("@type.builtin", fg="base0A"),
+    _g("@type.definition", fg="base0A"),
+    _g("@attribute", fg="base0A"),
+    _g("@property", fg="base08"),
+    _g("@function", fg="base0D"),
+    _g("@function.builtin", fg="base0D"),
+    _g("@function.call", fg="base0D"),
+    _g("@function.macro", fg="base08"),
+    _g("@function.method", fg="base0D"),
+    _g("@function.method.call", fg="base0D"),
+    _g("@constructor", fg="base0A"),
+    _g("@operator", fg="base05"),
+    _g("@keyword", fg="base0E"),
+    _g("@keyword.function", fg="base0E"),
+    _g("@keyword.operator", fg="base0E"),
+    _g("@keyword.import", fg="base0D"),
+    _g("@keyword.return", fg="base0E"),
+    _g("@keyword.repeat", fg="base0E"),
+    _g("@keyword.conditional", fg="base0E"),
+    _g("@keyword.exception", fg="base08"),
+    _g("@punctuation.delimiter", fg="base05"),
+    _g("@punctuation.bracket", fg="base05"),
+    _g("@punctuation.special", fg="base0F"),
+    _g("@comment", fg="base03", attrs=("italic",)),
+    _g("@comment.error", fg="base08", attrs=("bold",)),
+    _g("@comment.warning", fg="base0A", attrs=("bold",)),
+    _g("@comment.todo", fg="base0A", attrs=("bold",)),
+    _g("@comment.note", fg="base0D", attrs=("bold",)),
+    _g("@markup.strong", attrs=("bold",)),
+    _g("@markup.italic", attrs=("italic",)),
+    _g("@markup.strikethrough", attrs=("strikethrough",)),
+    _g("@markup.underline", attrs=("underline",)),
+    _g("@markup.heading", fg="base0D", attrs=("bold",)),
+    _g("@markup.raw", fg="base0B"),
+    _g("@markup.link", fg="base08"),
+    _g("@markup.link.url", fg="base09", attrs=("underline",)),
+    _g("@markup.link.label", fg="base0C"),
+    _g("@markup.list", fg="base08"),
+    _g("@markup.quote", fg="base0C"),
+    _g("@diff.plus", fg="base0B"),
+    _g("@diff.minus", fg="base08"),
+    _g("@diff.delta", fg="base0D"),
+    _g("@tag", fg="base0A"),
+    _g("@tag.attribute", fg="base08"),
+    _g("@tag.delimiter", fg="base0F"),
+)
+
+# -- LSP semantic tokens, expressed as links to the treesitter captures ----
+#
+# Linking rather than restating means an LSP-highlighted buffer and a
+# treesitter-highlighted one cannot drift apart.
+
+LSP_LINKS: tuple[Group, ...] = tuple(
+    _g(name, link=target) for name, target in (
+        ("@lsp.type.class", "@type"),
+        ("@lsp.type.comment", "@comment"),
+        ("@lsp.type.decorator", "@attribute"),
+        ("@lsp.type.enum", "@type"),
+        ("@lsp.type.enumMember", "@constant"),
+        ("@lsp.type.event", "@type"),
+        ("@lsp.type.function", "@function"),
+        ("@lsp.type.interface", "@type"),
+        ("@lsp.type.keyword", "@keyword"),
+        ("@lsp.type.macro", "@function.macro"),
+        ("@lsp.type.method", "@function.method"),
+        ("@lsp.type.modifier", "@keyword"),
+        ("@lsp.type.namespace", "@module"),
+        ("@lsp.type.number", "@number"),
+        ("@lsp.type.operator", "@operator"),
+        ("@lsp.type.parameter", "@variable.parameter"),
+        ("@lsp.type.property", "@property"),
+        ("@lsp.type.regexp", "@string.regexp"),
+        ("@lsp.type.string", "@string"),
+        ("@lsp.type.struct", "@type"),
+        ("@lsp.type.type", "@type"),
+        ("@lsp.type.typeParameter", "@type.definition"),
+        ("@lsp.type.variable", "@variable"),
+    )
+)
+
+# -- diagnostics ----------------------------------------------------------
+
+DIAGNOSTICS: tuple[Group, ...] = (
+    _g("DiagnosticError", fg="base08"),
+    _g("DiagnosticWarn", fg="base0A"),
+    _g("DiagnosticInfo", fg="base0D"),
+    _g("DiagnosticHint", fg="base0C"),
+    _g("DiagnosticOk", fg="base0B"),
+    _g("DiagnosticUnderlineError", sp="base08", attrs=("undercurl",)),
+    _g("DiagnosticUnderlineWarn", sp="base0A", attrs=("undercurl",)),
+    _g("DiagnosticUnderlineInfo", sp="base0D", attrs=("undercurl",)),
+    _g("DiagnosticUnderlineHint", sp="base0C", attrs=("undercurl",)),
+    _g("DiagnosticUnderlineOk", sp="base0B", attrs=("undercurl",)),
+    _g("DiagnosticVirtualTextError", fg="base08", bg="base01"),
+    _g("DiagnosticVirtualTextWarn", fg="base0A", bg="base01"),
+    _g("DiagnosticVirtualTextInfo", fg="base0D", bg="base01"),
+    _g("DiagnosticVirtualTextHint", fg="base0C", bg="base01"),
+    _g("DiagnosticVirtualTextOk", fg="base0B", bg="base01"),
+    _g("DiagnosticFloatingError", fg="base08", bg="base01"),
+    _g("DiagnosticFloatingWarn", fg="base0A", bg="base01"),
+    _g("DiagnosticFloatingInfo", fg="base0D", bg="base01"),
+    _g("DiagnosticFloatingHint", fg="base0C", bg="base01"),
+    _g("DiagnosticFloatingOk", fg="base0B", bg="base01"),
+    _g("DiagnosticSignError", fg="base08", bg="base00"),
+    _g("DiagnosticSignWarn", fg="base0A", bg="base00"),
+    _g("DiagnosticSignInfo", fg="base0D", bg="base00"),
+    _g("DiagnosticSignHint", fg="base0C", bg="base00"),
+    _g("DiagnosticSignOk", fg="base0B", bg="base00"),
+)

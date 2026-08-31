@@ -5,6 +5,8 @@ Convert terminal color schemes between formats through one canonical palette.
 Hub-and-spoke: every format is parsed into a single `Palette`, and every format
 is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters —
 instead of the 72 directed pairs a format-to-format converter would need.
+Vim and Neovim themes are generated from the same palette through a separate
+mapping layer.
 
 ## Why this exists
 
@@ -40,6 +42,9 @@ $ cscx convert ~/.local/share/konsole/Gruvbox.colorscheme --to kitty
 $ cscx convert theme.itermcolors --to ghostty -o ~/.config/ghostty/config
 $ cscx convert kitty.conf --to all -o ./out       # every format at once
 $ cscx convert scheme.toml --to foot --fill       # derive what the source lacks
+
+$ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
+$ cscx convert kitty.conf --to vim --terminal-exact
 
 $ cscx detect ~/.config/kitty/kitty.conf
  0.95  kitty
@@ -108,6 +113,61 @@ Formats without inline comments annotate on the preceding line (ghostty,
 X resources) or not at all (JSON, plists), in which case `cscx` reports the
 derived values on stderr.
 
+## Editors
+
+Vim and Neovim are written, not read. A terminal scheme is ~20 values; an
+editor theme is hundreds of semantic highlight groups, so the mapping is lossy
+in a way that cannot be run backwards — there is no reading a vim colorscheme
+back into 16 ANSI slots.
+
+```console
+$ cscx convert ~/.config/kitty/kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
+$ cscx convert Gruvbox.colorscheme --to vim --fill
+```
+
+**The mapping is base16.** Something has to decide that "green" means
+"string", and base16 is the established answer. Using its role names means the
+group tables read the same as every base16 template in the wild: ANSI red
+becomes `base08` (variables, diff deleted), blue becomes `base0D` (functions),
+magenta becomes `base0E` (keywords), and so on.
+
+**The UI shades are synthesised.** base16 has a greyscale ramp — statusline,
+cursorline, line numbers, comments — that no terminal palette contains. Those
+are interpolated from background toward foreground in OKLab, which matters:
+linear-light blending is physically correct for compositing but visibly
+overshoots, and its 8% step came out lighter than the hand-picked cursorline of
+the scheme it was derived from. OKLab lands within a few points of the
+hand-picked value.
+
+**Comments are held to a contrast ratio.** An unreadable comment color is the
+classic failure of a generated theme, so `base03` steps away from the
+background until it clears 4.5:1 (WCAG AA). It is also *capped* at 85% of the
+way to the foreground: some schemes — solarized light especially — have so
+little room that hitting 4.5:1 would put comments on top of normal text,
+trading one unreadable result for another. When the cap binds, the generated
+file says so. `--contrast RATIO` changes the target; `--contrast 0` disables it.
+
+**`--terminal-exact`** restricts the theme to the 16 palette colors, for exact
+parity with the terminal at the cost of a flatter UI. When that costs something
+real — a scheme whose `color0` equals its background has an invisible
+cursorline — the generated file carries a `NOTE:` explaining it.
+
+Both writers emit cterm indices alongside GUI colors, so a vim in a terminal
+without truecolor still looks right. A color that *is* one of the scheme's ANSI
+slots emits as index 0-15, so the terminal draws it from the very palette the
+theme was generated from; everything else falls back to the 256-color cube.
+Both also set the built-in terminal's colors, so `:terminal` matches too.
+
+Neovim output covers core groups, treesitter captures, LSP semantic tokens
+(linked to their treesitter equivalents, so the two cannot drift apart) and
+diagnostics — 214 groups. It deliberately does not set `termguicolors`, which
+is the user's setting rather than a colorscheme's business.
+
+An editor theme needs a complete palette. Missing values that `--fill` can
+derive prompt for `--fill`; a missing *hue* — one of the eight normal ANSI
+colors — is refused outright, because nothing can derive an absent hue from
+the others.
+
 ## Design notes
 
 **Nothing is invented.** Every `Palette` field starts as `None` and is only set
@@ -150,6 +210,8 @@ Output is verified against each format's actual consumer where one exists:
 | `xresources` | `xrdb -n` |
 | `konsole` | section structure compared against a shipped scheme |
 | `wezterm`, `windows-terminal`, `iterm2` | `tomllib`, `json`, `plistlib` |
+| `vim` | sourced in real vim, highlights dumped and checked |
+| `neovim` | sourced in real neovim, `nvim_get_hl` checked |
 
 ## Testing
 
@@ -157,7 +219,7 @@ Output is verified against each format's actual consumer where one exists:
 $ python3 -m pytest
 ```
 
-559 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
+613 tests. The fixture set is one scheme — Gruvbox, with all 16 slots distinct
 so an off-by-eight in a bright/normal mapping cannot pass — written out in all
 ten fixture formats. Every parser must produce an identical palette from it,
 and every emitter must round-trip it through every parser.
@@ -169,7 +231,12 @@ state.
 
 Also swept across 167 real local files (149 alacritty themes, 17 konsole
 schemes, kitty.conf) converted to all 9 formats — 1503 conversions with zero
-crashes and zero misdetections.
+crashes and zero misdetections — plus 332 editor themes generated from the same
+corpus, a sample of which are loaded in real neovim.
+
+The editor tests include hostile input: a scheme name carrying a newline used
+to end the header comment early and turn the rest of the file into code. Names
+are flattened now, and both editors are made to load a theme built from one.
 
 ## Adding a format
 
@@ -219,10 +286,14 @@ To add a fixture, write the Gruvbox scheme from `tests/test_parsers.py` in your
 format, drop it in `tests/fixtures/`, and add one line to `CASES` there and to
 `CAPABILITIES` in `tests/test_emitters.py`. Both suites then cover it.
 
-## Next: editors
+## Adding an editor
 
-Terminal schemes are ~20 values. A vim/neovim scheme is hundreds of semantic
-highlight groups (`@lsp.type.parameter`, `DiagnosticVirtualTextWarn`), so going
-to an editor is not a tenth emitter but an opinionated mapping from 16 colors
-onto highlight groups — which is exactly what base16 is. It belongs in its own
-layer, and tinted-theming's templates are the obvious thing to borrow.
+Editor writers live in `src/cscx/editors/` and register in that package's
+`_MODULES`. A writer needs `NAME`, `EXTENSION`, `BINARY`, `INSTALL_PATH` and an
+`emit(palette, *, terminal_exact, contrast_target)`.
+
+Most of the work is already done: `roles.derive()` produces the base16 roles,
+and the tables in `groups.py` are editor-agnostic — they name colors by role,
+never by hue. A new writer is mostly a matter of rendering those tables in the
+target's syntax. Helix (TOML), Emacs and VS Code are the obvious next ones; all
+three can reuse `CORE` and most of `TREESITTER` unchanged.
