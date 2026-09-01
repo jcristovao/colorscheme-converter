@@ -161,6 +161,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     active.add_argument("--json", action="store_true")
 
+    nvim = subparsers.add_parser(
+        "nvim-themes",
+        help="read neovim's colorschemes into palettes you can browse and convert",
+    )
+    nvim.add_argument(
+        "--list", action="store_true", help="just list the colorschemes available",
+    )
+    nvim.add_argument(
+        "-o", "--output", type=Path,
+        help="write here instead of the cache under ~/.cache/cscx/nvim",
+    )
+    nvim.add_argument(
+        "--only", action="append", default=[], metavar="NAME",
+        help="export just this colorscheme; repeatable",
+    )
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -189,7 +205,33 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_live(args)
         case "active":
             return _cmd_active(args)
+        case "nvim-themes":
+            return _cmd_nvim_themes(args)
     return 2
+
+
+def _cmd_nvim_themes(args: argparse.Namespace) -> int:
+    from .nvim_themes import NvimUnavailable, available, cache_dir, export
+
+    try:
+        if args.list:
+            for name in available():
+                print(name)
+            return 0
+
+        target = args.output or cache_dir()
+        print(f"cscx: asking neovim to load its colorschemes (this takes a moment)",
+              file=sys.stderr)
+        written = export(target, args.only or None)
+    except NvimUnavailable as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"cscx: wrote {len(written)} colorschemes to {target}", file=sys.stderr)
+    if args.output is None:
+        print("cscx: they now show up in `cscx browse` and `cscx list`",
+              file=sys.stderr)
+    return 0
 
 
 def _cmd_active(args: argparse.Namespace) -> int:

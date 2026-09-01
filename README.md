@@ -59,6 +59,7 @@ $ cscx parse theme.itermcolors --json
 $ cscx preview theme.itermcolors                  # colours, no browser
 $ cscx list                                       # every scheme on this box
 $ cscx active                                     # what each app is using now
+$ cscx nvim-themes                                # read nvim's colorschemes in
 $ cscx formats
 ```
 
@@ -162,6 +163,45 @@ $ pip install 'cscx[tui]'      # Textual; everything else needs nothing
 
 `cscx preview FILE` prints the same panels without the browser, and
 `cscx list` prints what discovery found.
+
+## Neovim colorschemes, read back
+
+Editors are written and not read here, because a colorscheme is a *program*
+rather than a table of colors — parsing one is hopeless. But neovim can be
+**asked**: load a colorscheme, then read back what it resolved to. That turns
+out to be both easier and far more reliable than parsing would have been.
+
+```console
+$ cscx nvim-themes
+cscx: wrote 178 colorschemes to ~/.cache/cscx/nvim
+cscx: they now show up in `cscx browse` and `cscx list`
+```
+
+They then appear in `browse`, `list` and `convert` with no special handling —
+so you can take a neovim colorscheme and emit it as a kitty, alacritty or foot
+theme.
+
+**Two tiers, and each file says which it got.**
+
+| | |
+|---|---|
+| `exact` | the scheme sets `terminal_color_0..15`, so the sixteen ANSI colors come from its author unchanged |
+| `derived` | it doesn't, so the palette is inferred from semantic groups — `String` is green, `Function` is blue, `Keyword` is magenta |
+
+The derived tier is the *inverse* of the base16 mapping used to write editor
+themes, and it's an approximation. It's also rarely needed: **169 of 179**
+colorschemes on the development machine set `terminal_color_*` outright. A
+scheme too monochrome to derive a palette from is skipped rather than guessed
+at.
+
+Every scheme is loaded inside a single neovim process — one per scheme would
+turn ten seconds into several minutes.
+
+One caveat about `exact`: it means *the colors the colorscheme configures*,
+which isn't always the conventional ANSI arrangement. `base16-nord` puts
+`#88C0D0` (Nord's frost cyan) in `terminal_color_1`, the red slot. That looks
+like a bug in the extraction and isn't — it's faithfully what neovim's
+built-in `:terminal` will use.
 
 ## What is each application using?
 

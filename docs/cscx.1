@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.8.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.9.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -62,6 +62,13 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .RB [ \-p
 .IR PATH ]
 .RB [ \-\-json ]
+.br
+.B cscx nvim\-themes
+.RB [ \-\-list ]
+.RB [ \-\-only
+.IR NAME ]
+.RB [ \-o
+.IR DIR ]
 .br
 .B cscx active
 .RB [ \-\-no\-editors ]
@@ -141,6 +148,12 @@ sample \(em without opening the browser.
 .B list
 List every scheme found on this machine, with the format each was identified
 as and where it came from.
+.TP
+.B nvim\-themes
+Read neovim's colorschemes into palettes and cache them, so they can be
+browsed, previewed and converted like any other scheme. See
+.B NEOVIM COLORSCHEMES
+below.
 .TP
 .B active
 Show which scheme each application is currently using. See
@@ -232,6 +245,14 @@ is scanned one level deep. Repeatable. Accepted by
 .B browse
 and
 .BR list .
+.TP
+.B \-\-list
+.B nvim\-themes
+only. List the colorschemes neovim can load, without reading any of them.
+.TP
+.BI \-\-only " NAME"
+.B nvim\-themes
+only. Read just this colorscheme. Repeatable.
 .TP
 .B \-\-no\-editors
 .B active
@@ -629,6 +650,56 @@ names a default there is no way to know which applies.
 In
 .B cscx browse
 the schemes a terminal is currently using are marked in the list.
+.
+.SH NEOVIM COLORSCHEMES
+Editors are written and not read, because a colorscheme is a program rather
+than a table of colors and parsing one is hopeless. Neovim, though, can be
+asked: it will load a colorscheme and report what it resolved to, which is
+both easier and more reliable than parsing would have been.
+.PP
+.B cscx nvim\-themes
+loads every colorscheme neovim can find \(em plugins included \(em and writes
+each one out as a palette under
+.IR ~/.cache/cscx/nvim ,
+in kitty's format because it holds a palette losslessly and everything else in
+.B cscx
+already reads it. They then appear in
+.BR browse ,
+.B list
+and
+.B convert
+with no special handling.
+.PP
+Every scheme is loaded inside a single neovim process. Starting one per scheme
+would turn about ten seconds into several minutes.
+.SS Exact and derived
+Two tiers, and which one applied is written into each file rather than
+implied.
+.TP
+.B exact
+The colorscheme sets
+.IR terminal_color_0 .. 15 ,
+so the sixteen ANSI colors come from its author unchanged. This is the common
+case: 169 of 179 colorschemes on the machine this was developed on.
+.TP
+.B derived
+It does not, so the palette is inferred from semantic highlight groups \(em
+.I String
+is green,
+.I Function
+is blue,
+.I Keyword
+is magenta. That is the inverse of the base16 mapping used to write editor
+themes, and it is an approximation.
+.PP
+A scheme too monochrome to derive a palette from is skipped rather than
+guessed at.
+.PP
+.B exact
+means the colors the colorscheme configures, which is not always the
+conventional ANSI arrangement: some schemes put an unexpected hue in
+.IR terminal_color_1 .
+That is faithfully what neovim's built\-in terminal will use.
 .
 .SH GAP FILLING
 By default the output carries only what was read, leaving the target program

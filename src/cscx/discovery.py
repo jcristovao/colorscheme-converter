@@ -90,7 +90,16 @@ def search_locations() -> tuple[SearchLocation, ...]:
         SearchLocation("iTerm2 schemes", data / "iterm2", ("**/*.itermcolors",), "iterm2"),
 
         SearchLocation("cscx themes", config / "cscx/themes", ("**/*",), None),
+        # Neovim colorschemes exported by `cscx nvim-themes`, stored in kitty
+        # format because it holds a palette losslessly and everything here
+        # already reads it.
+        SearchLocation("neovim colorschemes", _nvim_cache(), ("*.conf",), "kitty"),
     )
+
+
+def _nvim_cache() -> Path:
+    root = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(root) / "cscx/nvim"
 
 
 @dataclass(frozen=True, slots=True)
