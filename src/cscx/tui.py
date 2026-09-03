@@ -48,6 +48,44 @@ DEFAULT_OUTPUT = Path("~/.config/cscx/themes")
 #: How far ctrl+d and ctrl+u move through the list.
 _PAGE = 10
 
+#: The help screen, as (section, [(keys, what it does)]). A test asserts every
+#: binding with a description appears here, so the two cannot drift apart.
+HELP: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    ("Moving", (
+        ("j / k  or  down / up", "move through the list"),
+        ("g / G", "first / last entry"),
+        ("ctrl+d / ctrl+u", "move by ten"),
+        ("l / h", "into the preview / back to the list"),
+        ("", "j and k scroll whichever pane has focus"),
+    )),
+    ("Finding", (
+        ("/", "focus the filter"),
+        ("", "a bare word matches name, source, format and origin, fuzzily"),
+        ("", "several words must all match:  gruv dark"),
+        ("", "source:neovim  format:kitty  origin:...  narrow one field"),
+        ("", "src: and fmt: are accepted short forms"),
+        ("escape", "leave the filter, back to the list"),
+    )),
+    ("Doing", (
+        ("c", "copy the scheme to another format, into a file"),
+        ("a", "apply it to this terminal now (nothing is written)"),
+        ("u", "undo that; quitting undoes it too"),
+        ("A", "activate it for an application, editing its config"),
+        ("", "the plan is shown first, and existing files are backed up"),
+        ("r", "rescan for schemes"),
+    )),
+    ("Reading the list", (
+        ("", "the swatches are the scheme's own sixteen ANSI colours"),
+        ("", "the second column is the source: which application it came from"),
+        ("", "a green dot marks a scheme a terminal is currently using"),
+    )),
+    ("Elsewhere", (
+        ("?  or  F1", "this help"),
+        ("q", "quit"),
+        ("", "man cscx covers the command line"),
+    )),
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Target:
@@ -179,6 +217,36 @@ class ActivateScreen(ModalScreen[str | None]):
         self.dismiss(None)
 
 
+class HelpScreen(ModalScreen[None]):
+    """The keys, and the things about the list that are not self-evident."""
+
+    BINDINGS = [
+        Binding("escape", "dismiss_screen", "Close"),
+        Binding("question_mark", "dismiss_screen", "Close", show=False),
+        Binding("f1", "dismiss_screen", "Close", show=False),
+        Binding("q", "dismiss_screen", "Close", show=False),
+    ]
+
+    def compose(self) -> ComposeResult:
+        with VerticalScroll(id="help-dialog"):
+            yield Label("cscx — browsing schemes", id="help-title")
+            for section, rows in HELP:
+                yield Label(section, classes="help-section")
+                for keys, description in rows:
+                    yield Label(self._row(keys, description), classes="help-row")
+            yield Label("any of  esc  ?  F1  q  closes this", classes="dim")
+
+    @staticmethod
+    def _row(keys: str, description: str) -> Text:
+        row = Text()
+        row.append(f"  {keys:<22}", style="bold" if keys else "")
+        row.append(description, style="" if keys else "italic dim")
+        return row
+
+    def action_dismiss_screen(self) -> None:
+        self.dismiss(None)
+
+
 class BrowseApp(App[None]):
     """Browse, preview and copy the schemes on this machine."""
 
@@ -202,10 +270,18 @@ class BrowseApp(App[None]):
     }
     #activate-apps { height: 10; }
     #activate-plan { height: auto; padding: 1 0 0 0; color: $text-muted; }
+    #help-dialog {
+        width: 74; max-height: 90%; padding: 1 2;
+        background: $surface; border: thick $primary;
+    }
+    #help-title { text-style: bold; padding-bottom: 1; }
+    .help-section { color: $accent; text-style: bold; padding-top: 1; }
     """
 
     BINDINGS = [
         Binding("q", "quit", "Quit"),
+        Binding("question_mark", "help", "Help"),
+        Binding("f1", "help", "Help", show=False),
         Binding("slash", "focus_filter", "Filter"),
         Binding("c", "copy_to", "Copy to"),
         Binding("a", "live_apply", "Live"),
@@ -362,6 +438,9 @@ class BrowseApp(App[None]):
     @on(Input.Submitted, "#filter")
     def _filter_submitted(self) -> None:
         self.query_one("#schemes", OptionList).focus()
+
+    def action_help(self) -> None:
+        self.push_screen(HelpScreen())
 
     def action_focus_filter(self) -> None:
         self.query_one("#filter", Input).focus()

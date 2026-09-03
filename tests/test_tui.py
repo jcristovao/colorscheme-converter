@@ -519,3 +519,107 @@ async def test_letters_typed_into_the_filter_are_not_navigation():
         await pilot.pause()
         assert app.query_one("#filter").value == "jkgq"
         assert app.is_running
+
+
+# -- help -----------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["question_mark", "f1"])
+async def test_help_opens_on_question_mark_and_f1(key):
+    app = make_app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await pilot.pause()
+        await pilot.press(key)
+        await pilot.pause()
+        assert type(app.screen).__name__ == "HelpScreen"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("key", ["escape", "question_mark", "f1", "q"])
+async def test_help_closes_on_any_of_its_keys(key):
+    app = make_app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await pilot.pause()
+        await pilot.press("question_mark")
+        await pilot.pause()
+        await pilot.press(key)
+        await pilot.pause()
+        assert type(app.screen).__name__ != "HelpScreen"
+        assert app.is_running, "q inside help should close it, not quit cscx"
+
+
+@pytest.mark.asyncio
+async def test_help_does_not_disturb_the_selection():
+    app = make_app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await pilot.pause()
+        await pilot.press("j")
+        await pilot.pause()
+        selected = app.current()
+
+        await pilot.press("question_mark")
+        await pilot.pause()
+        await pilot.press("escape")
+        await pilot.pause()
+        assert app.current() == selected
+
+
+@pytest.mark.asyncio
+async def test_question_mark_typed_into_the_filter_is_text():
+    app = make_app()
+    async with app.run_test(size=(120, 44)) as pilot:
+        await pilot.pause()
+        app.query_one("#filter").focus()
+        await pilot.press("question_mark")
+        await pilot.pause()
+        assert type(app.screen).__name__ != "HelpScreen"
+        assert app.query_one("#filter").value == "?"
+
+
+#: How a binding's key name is spelled for a human, so the drift guard can
+#: recognise it in the help text.
+_SPELLING = {"question_mark": "?", "slash": "/", "f1": "F1"}
+
+
+def test_every_binding_is_documented_in_the_help():
+    """A key that works but is not in the help is a key nobody finds."""
+    from cscx.tui import HELP, BrowseApp
+
+    import re
+
+    documented = set()
+    for _section, rows in HELP:
+        for keys, _description in rows:
+            # Split on " / " and " or " as separators, which leaves a bare "/"
+            # -- itself a binding -- intact.
+            for token in re.split(r"\s+or\s+|\s+/\s+", keys):
+                if token.strip():
+                    documented.add(token.strip())
+
+    for binding in BrowseApp.BINDINGS:
+        if not binding.description:
+            continue
+        for key in binding.key.split(","):
+            spelled = _SPELLING.get(key.strip(), key.strip())
+            assert spelled in documented, f"{spelled!r} is bound but undocumented"
+
+
+def test_the_help_explains_the_filter_syntax():
+    from cscx.tui import HELP
+
+    text = " ".join(
+        f"{keys} {description}"
+        for _section, rows in HELP for keys, description in rows
+    )
+    assert "source:" in text and "fuzzil" in text.lower()
+
+
+def test_the_help_explains_what_the_list_shows():
+    """The swatches, the source column and the in-use dot are not obvious."""
+    from cscx.tui import HELP
+
+    text = " ".join(
+        description for _section, rows in HELP for _keys, description in rows
+    )
+    assert "source" in text and "in use" in text.lower() or "currently using" in text

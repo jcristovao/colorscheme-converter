@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.11.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.12.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -504,6 +504,16 @@ scrolls the preview rather than quietly moving the selection behind it.
 .PP
 None of these apply while the filter has focus, where they are simply typed.
 .SS Keys
+.TP
+.BR ? " or " F1
+Show a summary of these keys, the filter syntax, and what the columns in the
+list mean. Any of
+.BR esc ,
+.BR ? ,
+.B F1
+or
+.B q
+closes it again.
 .TP
 .B /
 Focus the filter. See

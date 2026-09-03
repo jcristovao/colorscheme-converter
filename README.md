@@ -136,8 +136,13 @@ h l         list / preview  ctrl+d ctrl+u   move by ten
 a   apply to this terminal now      A   activate for an application
 u   undo the live preview           c   copy to another format
 /   filter (fuzzy — see below)      r   rescan
-q   quit
+?   help (also F1)                  q   quit
 ```
+
+`?` or `F1` shows the keys, the filter syntax and what the list's columns mean
+— the swatches, the source column, and the green dot marking a scheme a
+terminal is currently using. A test asserts every binding appears there, so a
+key that works but isn't documented fails the build.
 
 Arrow keys work throughout; the vim keys work alongside them. `l` moves right
 into the preview and `h` back to the list, and `j`/`k` scroll whichever pane
