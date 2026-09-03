@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from ..palette import Palette
-from . import emacs, helix, neovim, vim, vscode
+from . import claude_code, emacs, helix, neovim, vim, vscode
 from .vscode_forks import ANTIGRAVITY, CURSOR
 from .roles import CONTRAST_TARGET, EditorPaletteError, derive
 
@@ -47,7 +47,7 @@ class Editor(Protocol):
     ) -> str: ...
 
 
-_MODULES = (vim, neovim, helix, emacs, vscode, CURSOR, ANTIGRAVITY)
+_MODULES = (vim, neovim, helix, emacs, vscode, CURSOR, ANTIGRAVITY, claude_code)
 
 EDITORS: dict[str, Editor] = {m.NAME: m for m in _MODULES}  # type: ignore[misc]
 
@@ -57,6 +57,8 @@ _ALIASES = {
     "hx": "helix",
     "code": "vscode",
     "ag": "antigravity",
+    "claude": "claude-code",
+    "cc": "claude-code",
     "vs-code": "vscode",
     "visual-studio-code": "vscode",
 }

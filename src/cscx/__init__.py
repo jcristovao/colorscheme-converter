@@ -6,7 +6,7 @@ from .fill import fill
 from .formats import PARSERS, detect_format, get_parser, parse_file
 from .emitters import EMITTERS, emit, get_emitter
 
-__version__ = "0.12.0"
+__version__ = "0.13.0"
 
 __all__ = [
     "Color",

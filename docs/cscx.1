@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.12.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.13.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -389,6 +389,15 @@ Sets the integrated terminal's sixteen colors as well as the editor's. Aliased
 as
 .BR code .
 .TP
+.B claude\-code
+.IR ~/.claude/themes/ NAME .json .
+See
+.B CLAUDE CODE
+below. Aliased as
+.B claude
+and
+.BR cc .
+.TP
 .B cursor
 .TQ
 .B antigravity
@@ -740,6 +749,64 @@ are cached in kitty's format, so their source is
 and their format is
 .IR kitty .
 Listings show the source, because calling them kitty would be misleading.
+.
+.SH CLAUDE CODE
+Claude Code is themable. It ships six presets \(em
+.BR dark ,
+.BR light ,
+.BR dark\-ansi ,
+.BR light\-ansi ,
+.B dark\-daltonized
+and
+.B light\-daltonized
+\(em and reads custom themes from
+.IR ~/.claude/themes/ SLUG .json\fR,
+selected with
+.BI theme:\  custom: SLUG
+in
+.IR ~/.claude/settings.json ,
+or from its
+.B /theme
+picker.
+.PP
+Before generating anything, consider whether you need to. The
+.B dark\-ansi
+and
+.B light\-ansi
+presets already render the whole interface from the terminal's sixteen ANSI
+colors, so theming the terminal themes Claude Code too, permanently and with
+nothing to keep in step.
+.PP
+The
+.B claude\-code
+target is for the other case: dressing Claude Code in a scheme that is not the
+terminal's current one. It writes all 72 tokens with a base chosen from the
+palette's lightness.
+.SS Why the token names matter
+Claude Code merges a custom theme by walking the overrides and keeping only
+those whose token the base preset already has, and whose value is a valid
+color. Anything else is dropped without a message, so a mistaken token name
+yields a theme that loads and quietly does nothing.
+.PP
+The token names and their mapping to ANSI colors are therefore not invented
+here. They are read out of the
+.B dark\-ansi
+and
+.B light\-ansi
+presets in the installed Claude Code, which differ from one another on 37 of
+the 72 tokens. A test checks the pinned list against whichever build
+.B claude
+currently runs, because the set does change between releases: 2.1.76 had 67
+tokens and called one
+.IR selectionBackground ,
+which by 2.1.221 was 72 and
+.IR selectionBg .
+.PP
+Where the scheme carries something the sixteen ANSI slots cannot express \(em
+its foreground, background and selection \(em that value is used in
+preference.
+.B \-\-terminal\-exact
+restricts the output to the ANSI slots instead.
 .
 .SH NEOVIM COLORSCHEMES
 Editors are written and not read, because a colorscheme is a program rather

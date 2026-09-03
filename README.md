@@ -203,6 +203,50 @@ $ pip install 'cscx[tui]'      # Textual; everything else needs nothing
 `cscx preview FILE` prints the same panels without the browser, and
 `cscx list` prints what discovery found.
 
+## Claude Code
+
+Claude Code is themable — six presets (`dark`, `light`, `dark-ansi`,
+`light-ansi`, and daltonized variants) plus custom themes read from
+`~/.claude/themes/<slug>.json` and selected with `"theme": "custom:<slug>"`.
+
+**You may not need to convert anything.** `dark-ansi` and `light-ansi` render
+the entire interface from the terminal's sixteen ANSI colors — so theming your
+terminal themes Claude Code too, permanently, with nothing to keep in step:
+
+```json
+// ~/.claude/settings.json
+{ "theme": "dark-ansi" }
+```
+
+The `claude-code` target is for the other case: dressing Claude Code in a
+scheme that *isn't* your terminal's.
+
+```console
+$ cscx convert gruvbox.conf --to claude-code -o ~/.claude/themes/gruvbox.json
+```
+
+### Why the token names had to be extracted, not guessed
+
+Claude Code merges a custom theme by keeping only overrides whose token the
+base preset already has and whose value is a valid color. **Everything else is
+dropped with no message** — so a mistaken token name produces a theme that
+loads and silently does nothing. Same trap as VS Code's `scrollbar.background`.
+
+So the 72 tokens and their ANSI mapping are read out of the `dark-ansi` and
+`light-ansi` presets in the installed binary rather than invented. Those two
+differ on **37 of 72** tokens, which is why the base is chosen from the
+palette's lightness instead of fixed.
+
+A test checks the pinned list against whichever build `claude` actually runs —
+and that check earned its keep immediately. It first read `2.1.76` because
+version directories sort *lexically* (`2.1.76` > `2.1.221`), and that year-old
+build has **67** tokens, calling one `selectionBackground` where 2.1.221 calls
+it `selectionBg`. The token set really does drift between releases.
+
+Where a scheme carries something sixteen ANSI slots can't express — its
+foreground, background and selection — that value wins. `--terminal-exact`
+restricts output to the ANSI slots.
+
 ## Neovim colorschemes, read back
 
 Editors are written and not read here, because a colorscheme is a *program*
@@ -359,6 +403,7 @@ into 16 ANSI slots.
 | `vscode` (`code`) | `.json` | `~/.vscode/extensions/<ext>/themes/NAME-color-theme.json` |
 | `cursor` | `.json` | `~/.cursor/extensions/<ext>/themes/…` |
 | `antigravity` (`ag`) | `.json` | `~/.antigravity/extensions/<ext>/themes/…` |
+| `claude-code` (`claude`, `cc`) | `.json` | `~/.claude/themes/NAME.json` |
 
 Filenames are not free: Emacs only finds a theme named `NAME-theme.el`, and
 VS Code expects `NAME-color-theme.json`, so `--to all` names them accordingly.

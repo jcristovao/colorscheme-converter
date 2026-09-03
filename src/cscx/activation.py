@@ -281,6 +281,17 @@ def _konsole_profile(text: str, name: str) -> str:
 # to your init file behind your back.
 
 
+#: How to make each editor use a theme once the file is in place. Saying it
+#: is deliberate: cscx will not edit an init file to select a colorscheme.
+_RELOAD = {
+    "vim": ":colorscheme {name}",
+    "neovim": ":colorscheme {name}",
+    "helix": 'theme = "{name}" in ~/.config/helix/config.toml',
+    "emacs": "(load-theme '{name} t)",
+    "claude-code": '/theme, or "theme": "custom:{name}" in ~/.claude/settings.json',
+}
+
+
 def _editor(app: str) -> object:
     def build(palette: Palette, name: str) -> Plan:
         editor = get_editor(app)
@@ -292,9 +303,7 @@ def _editor(app: str) -> object:
         return Plan(
             app=app,
             steps=[Step(target, editor.emit(palette), "the theme itself")],
-            reload=f":colorscheme {name}" if app in {"vim", "neovim"} else
-                   (f'theme = "{name}" in helix config.toml' if app == "helix" else
-                    f"(load-theme '{name} t)"),
+            reload=_RELOAD[app].format(name=name),
         )
 
     return build

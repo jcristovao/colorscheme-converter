@@ -24,7 +24,7 @@ OPTIONAL_ROLES = {"cursor", "cursor_text", "selection_bg", "selection_fg"}
 #: and are reported on stderr instead.
 COMMENT_PREFIX = {
     "vim": '"', "neovim": "--", "helix": "#", "emacs": ";;",
-    "vscode": None, "cursor": None, "antigravity": None,
+    "vscode": None, "cursor": None, "antigravity": None, "claude-code": None,
 }
 COMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if c)
 UNCOMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if not c)
