@@ -360,3 +360,38 @@ async def test_a_failing_probe_leaves_the_list_usable(monkeypatch):
         await pilot.pause()
         assert app.in_use == {}
         assert app._shown
+
+
+@pytest.mark.asyncio
+async def test_filtering_by_source():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.query_one("#filter").value = "source:fixtures"
+        await pilot.pause()
+        assert app._shown == app._all
+
+        app.query_one("#filter").value = "source:nothing-like-this"
+        await pilot.pause()
+        assert app._shown == []
+
+
+@pytest.mark.asyncio
+async def test_the_filter_is_fuzzy():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        # `grvbx` is not a substring of anything, but it is a subsequence.
+        app.query_one("#filter").value = "grvbx"
+        await pilot.pause()
+        assert app._shown
+        assert all("gruvbox" in d.path.name for d in app._shown)
+
+
+@pytest.mark.asyncio
+async def test_rows_show_the_source_not_the_container_format():
+    app = make_app()
+    async with app.run_test(size=(140, 40)) as pilot:
+        await pilot.pause()
+        row = app.query_one("#schemes").get_option_at_index(0).prompt
+        assert "fixtures" in row.plain

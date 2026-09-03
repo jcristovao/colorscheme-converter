@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.9.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.10.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -59,6 +59,7 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .IR COLUMNS ]
 .br
 .B cscx list
+.RI [ QUERY ...]
 .RB [ \-p
 .IR PATH ]
 .RB [ \-\-json ]
@@ -145,9 +146,12 @@ below.
 Print one scheme as colors \(em its palette, a shell session and a syntax
 sample \(em without opening the browser.
 .TP
-.B list
-List every scheme found on this machine, with the format each was identified
-as and where it came from.
+.BI list " \fR[\fPQUERY...\fR]\fP"
+List the schemes found on this machine, optionally narrowed by
+.IR QUERY .
+See
+.B FILTERING
+below.
 .TP
 .B nvim\-themes
 Read neovim's colorschemes into palettes and cache them, so they can be
@@ -474,6 +478,11 @@ sample is painted with the base16 roles the editor writers assign, which shows
 the mapping rather than any editor's own rendering.
 .SS Keys
 .TP
+.B /
+Focus the filter. See
+.B FILTERING
+for what it accepts.
+.TP
 .B a
 Apply the highlighted scheme to the running terminal. Nothing is written to
 disk. Quitting restores the terminal's own colors, as does
@@ -491,10 +500,6 @@ Copy the highlighted scheme to another format. Pick a target, confirm the
 destination, and it is written. Editing the destination keeps it: changing the
 target afterwards re\-suggests a filename only while the field still holds the
 previous suggestion.
-.TP
-.B /
-Focus the filter. It matches the scheme name and the format name. Escape or
-Enter returns to the list.
 .TP
 .B r
 Rescan. Anything written to
@@ -650,6 +655,54 @@ names a default there is no way to know which applies.
 In
 .B cscx browse
 the schemes a terminal is currently using are marked in the list.
+.
+.SH FILTERING
+The filter in
+.B browse
+and the optional query to
+.B list
+work the same way.
+.PP
+A bare word is matched fuzzily against the scheme's name, its source, its
+format and where it was found, all together. The match is a subsequence, so
+.I b16sulph
+finds
+.IR base16\-atelier\-sulphurpool ,
+and results are ranked: an exact substring outranks a scattered match, a match
+that starts a word outranks one in the middle, and adjacent characters outrank
+spread\-out ones.
+.PP
+Several bare words all have to match, which is what makes
+.I gruv dark
+narrower than either word alone.
+.PP
+A word of the form
+.BI source: VALUE
+constrains that field exactly instead of fuzzily.
+.B format:
+and
+.B origin:
+do the same for those fields, and
+.B src:
+and
+.B fmt:
+are accepted as short forms. Constraints and bare words combine, so
+.I source:neovim gruv
+is every gruvbox variant that came out of neovim.
+.PP
+A prefix that is not one of those fields is treated as ordinary text, not as a
+failed constraint.
+.SS Source is not format
+The
+.B source
+is the application a scheme came from; the
+.B format
+is how it is written. They usually agree, but not always: neovim colorschemes
+are cached in kitty's format, so their source is
+.I neovim
+and their format is
+.IR kitty .
+Listings show the source, because calling them kitty would be misleading.
 .
 .SH NEOVIM COLORSCHEMES
 Editors are written and not read, because a colorscheme is a program rather

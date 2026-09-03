@@ -102,6 +102,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     listing = subparsers.add_parser("list", help="list the schemes found on this machine")
     listing.add_argument(
+        "query", nargs="*", default=[], metavar="QUERY",
+        help="fuzzy filter; `source:neovim` or `format:kitty` narrows a field",
+    )
+    listing.add_argument(
         "-p", "--path", type=Path, action="append", default=[], metavar="PATH",
         help="also search this file or directory; repeatable",
     )
@@ -369,12 +373,14 @@ def _cmd_preview(args: argparse.Namespace) -> int:
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
-    from .discovery import discover
+    from .discovery import discover, filter_schemes
 
     found = discover(args.path)
+    if query := " ".join(args.query):
+        found = filter_schemes(query, found)
     if args.json:
         print(json.dumps([
-            {"path": str(d.path), "format": d.format,
+            {"path": str(d.path), "format": d.format, "source": d.source,
              "confidence": round(d.confidence, 3), "origin": d.origin, "name": d.name}
             for d in found
         ], indent=2))
@@ -384,7 +390,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
         print("cscx: no schemes found", file=sys.stderr)
         return 1
     for entry in found:
-        print(f"{entry.format:18} {entry.name:34} {entry.path}")
+        print(f"{entry.source:12} {entry.name:34} {entry.path}")
     print(f"\n{len(found)} schemes", file=sys.stderr)
     return 0
 

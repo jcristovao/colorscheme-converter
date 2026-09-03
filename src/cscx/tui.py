@@ -26,7 +26,13 @@ from textual.widgets.option_list import Option
 from . import __version__, live
 from .active import detect as detect_active
 from .activation import ACTIVATABLE, ActivationError, apply_plan, plan
-from .discovery import Discovered, SearchLocation, discover, installed_applications
+from .discovery import (
+    Discovered,
+    SearchLocation,
+    discover,
+    filter_schemes,
+    installed_applications,
+)
 from .editors import EDITORS, EditorPaletteError, get_editor
 from .emitters import EMITTERS, get_emitter
 from .formats import parse_file
@@ -236,7 +242,7 @@ class BrowseApp(App[None]):
         yield Header()
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
-                yield Input(placeholder="filter…", id="filter")
+                yield Input(placeholder="filter — try  gruv  or  source:neovim", id="filter")
                 yield OptionList(id="schemes")
             with VerticalScroll(id="preview-pane"):
                 yield Static("", id="preview")
@@ -257,7 +263,8 @@ class BrowseApp(App[None]):
         self._cache.clear()
         self._refresh_in_use()
         self._apply_filter(self.query_one("#filter", Input).value)
-        self.sub_title = f"{len(self._all)} schemes"
+        sources = len({found.source for found in self._all})
+        self.sub_title = f"{len(self._all)} schemes from {sources} sources"
 
     def _refresh_in_use(self) -> None:
         """Which discovered scheme each terminal is currently using.
@@ -275,11 +282,8 @@ class BrowseApp(App[None]):
             self.in_use = {}
 
     def _apply_filter(self, needle: str) -> None:
-        needle = needle.strip().lower()
-        self._shown = [
-            d for d in self._all
-            if not needle or needle in d.name.lower() or needle in d.format
-        ]
+        # filter_schemes returns best-first, so the order it gives is kept.
+        self._shown = filter_schemes(needle.strip(), self._all)
 
         options = self.query_one("#schemes", OptionList)
         options.clear_options()
@@ -297,7 +301,9 @@ class BrowseApp(App[None]):
             # One unreadable file must cost one row, not the whole list.
             row = Text(" " * 16, style="dim")
         row.append(f" {found.name}", style="bold")
-        row.append(f"  {found.format}", style="dim")
+        # The source, not the format: neovim schemes are cached as kitty
+        # files, and labelling them "kitty" here would be misleading.
+        row.append(f"  {found.source}", style="dim")
         if users := self.in_use.get(found.path):
             row.append(f"  ● in use by {', '.join(users)}", style="bold green")
         return row
@@ -322,6 +328,8 @@ class BrowseApp(App[None]):
         self._set_preview(Text.from_ansi(render(palette)))
         self.query_one("#status", Static).update(
             f"{found.path}  ·  {found.format} {found.confidence:.2f}  ·  {found.origin}"
+            + (f"  ·  {len(self._shown)}/{len(self._all)} shown"
+               if len(self._shown) != len(self._all) else "")
         )
 
     def _set_preview(self, renderable: Text) -> None:

@@ -102,3 +102,109 @@ def test_installed_applications_reports_a_subset_of_what_we_support():
 
     known = set(EMITTERS) | set(EDITORS)
     assert installed_applications() <= known
+
+
+# -- source labelling -----------------------------------------------------
+
+
+def test_a_location_names_its_source(tmp_path):
+    from cscx.discovery import SearchLocation
+
+    assert SearchLocation("kitty themes", tmp_path, ("*",)).source == "kitty"
+    assert SearchLocation("X resources", tmp_path, ("*",),
+                          source="xresources").source == "xresources"
+
+
+def test_discovered_schemes_carry_their_source(fixture_location):
+    for entry in discover(locations=[fixture_location]):
+        assert entry.source == "fixtures"
+
+
+def test_the_source_is_not_the_storage_format(tmp_path):
+    """Neovim schemes are cached as kitty files; calling them kitty misleads."""
+    from cscx.discovery import SearchLocation
+
+    (tmp_path / "nord.conf").write_text(
+        (FIXTURES / "gruvbox.kitty.conf").read_text()
+    )
+    location = SearchLocation("neovim colorschemes", tmp_path, ("*.conf",),
+                              "kitty", source="neovim")
+    entry = discover(locations=[location])[0]
+    assert entry.format == "kitty"
+    assert entry.source == "neovim"
+
+
+def test_the_haystack_covers_everything_worth_matching(fixture_location):
+    entry = discover(locations=[fixture_location])[0]
+    for part in (entry.name, entry.source, entry.format, entry.origin):
+        assert part in entry.haystack
+
+
+# -- filtering ------------------------------------------------------------
+
+
+@pytest.fixture
+def catalogue():
+    from cscx.discovery import Discovered
+
+    return [
+        Discovered(Path("/a/gruvbox.conf"), "kitty", 0.9, "neovim colorschemes", "neovim"),
+        Discovered(Path("/b/gruvbox-dark.toml"), "alacritty", 0.9, "alacritty themes", "alacritty"),
+        Discovered(Path("/c/nord.colorscheme"), "konsole", 0.9, "konsole schemes", "konsole"),
+        Discovered(Path("/d/base16-atelier-sulphurpool.conf"), "kitty", 0.9,
+                   "neovim colorschemes", "neovim"),
+    ]
+
+
+def test_a_bare_query_is_matched_fuzzily(catalogue):
+    from cscx.discovery import filter_schemes
+
+    hits = filter_schemes("b16sulph", catalogue)
+    assert [h.path.stem for h in hits] == ["base16-atelier-sulphurpool"]
+
+
+def test_a_bare_query_also_matches_the_source(catalogue):
+    from cscx.discovery import filter_schemes
+
+    assert len(filter_schemes("neovim", catalogue)) == 2
+
+
+def test_a_source_constraint_narrows_exactly(catalogue):
+    from cscx.discovery import filter_schemes
+
+    assert len(filter_schemes("source:konsole", catalogue)) == 1
+    assert len(filter_schemes("src:neovim", catalogue)) == 2
+
+
+def test_a_format_constraint_is_separate_from_the_source(catalogue):
+    from cscx.discovery import filter_schemes
+
+    # Two entries are kitty-format, but they came from neovim.
+    assert len(filter_schemes("format:kitty", catalogue)) == 2
+    assert len(filter_schemes("fmt:alacritty", catalogue)) == 1
+
+
+def test_constraints_and_fuzzy_text_combine(catalogue):
+    from cscx.discovery import filter_schemes
+
+    hits = filter_schemes("source:neovim gruv", catalogue)
+    assert [h.path.stem for h in hits] == ["gruvbox"]
+
+
+def test_every_bare_term_must_match(catalogue):
+    from cscx.discovery import filter_schemes
+
+    assert filter_schemes("gruv nord", catalogue) == []
+    assert len(filter_schemes("gruv dark", catalogue)) == 1
+
+
+def test_an_unknown_prefix_is_treated_as_text(catalogue):
+    from cscx.discovery import filter_schemes
+
+    assert filter_schemes("colour:red", catalogue) == []
+
+
+def test_an_empty_query_keeps_everything(catalogue):
+    from cscx.discovery import filter_schemes
+
+    assert filter_schemes("", catalogue) == catalogue

@@ -10,17 +10,20 @@ unrelated files to turn up a few hundred schemes.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from .formats import detect_format
+from .fuzzy import score
 
 __all__ = [
     "Discovered",
     "SearchLocation",
     "search_locations",
     "discover",
+    "filter_schemes",
     "installed_applications",
 ]
 
@@ -51,6 +54,14 @@ class SearchLocation:
     #: this only breaks ties, since several formats share the `.toml` and
     #: `.conf` extensions.
     expect: str | None = None
+    #: Which application these schemes came from. Not the same as the format:
+    #: neovim colorschemes are cached as kitty files, and calling them "kitty"
+    #: in a listing would be actively misleading.
+    source: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.source:
+            object.__setattr__(self, "source", self.label.split()[0].lower())
 
 
 def search_locations() -> tuple[SearchLocation, ...]:
@@ -81,13 +92,17 @@ def search_locations() -> tuple[SearchLocation, ...]:
         SearchLocation("wezterm colors", home / ".wezterm/colors", ("**/*.toml",), "wezterm"),
 
         SearchLocation("windows terminal", config / "windows-terminal", ("*.json",),
-                       "windows-terminal"),
+                       "windows-terminal", source="windows-terminal"),
 
-        SearchLocation("X resources", home, (".Xresources", ".Xdefaults"), "xresources"),
-        SearchLocation("X resources", config / "X11", ("*",), "xresources"),
+        SearchLocation("X resources", home, (".Xresources", ".Xdefaults"), "xresources",
+                       source="xresources"),
+        SearchLocation("X resources", config / "X11", ("*",), "xresources",
+                       source="xresources"),
 
-        SearchLocation("iTerm2 schemes", config / "iterm2", ("**/*.itermcolors",), "iterm2"),
-        SearchLocation("iTerm2 schemes", data / "iterm2", ("**/*.itermcolors",), "iterm2"),
+        SearchLocation("iTerm2 schemes", config / "iterm2", ("**/*.itermcolors",), "iterm2",
+                       source="iterm2"),
+        SearchLocation("iTerm2 schemes", data / "iterm2", ("**/*.itermcolors",), "iterm2",
+                       source="iterm2"),
 
         SearchLocation("cscx themes", config / "cscx/themes", ("**/*",), None),
         # Neovim colorschemes exported by `cscx nvim-themes`, stored in kitty
@@ -110,6 +125,14 @@ class Discovered:
     format: str
     confidence: float
     origin: str
+    #: The application this came from -- "neovim", not the "kitty" container
+    #: its palette happens to be cached in.
+    source: str = ""
+
+    @property
+    def haystack(self) -> str:
+        """Everything a filter should be able to match against."""
+        return f"{self.name} {self.source} {self.format} {self.origin}"
 
     @property
     def name(self) -> str:
@@ -139,7 +162,8 @@ def discover(
 
     for location in search:
         for path in _candidates(location):
-            entry = _identify(path, location.expect, location.label, min_confidence)
+            entry = _identify(path, location.expect, location.label,
+                              min_confidence, location.source)
             if entry is not None:
                 found.setdefault(entry.path, entry)
 
@@ -151,7 +175,7 @@ def discover(
         except OSError:
             continue
         for candidate in paths:
-            entry = _identify(candidate, None, "given", min_confidence)
+            entry = _identify(candidate, None, "given", min_confidence, "given")
             if entry is not None:
                 found.setdefault(entry.path, entry)
 
@@ -172,7 +196,11 @@ def _candidates(location: SearchLocation) -> Iterator[Path]:
 
 
 def _identify(
-    path: Path, expect: str | None, origin: str, min_confidence: float
+    path: Path,
+    expect: str | None,
+    origin: str,
+    min_confidence: float,
+    source: str = "",
 ) -> Discovered | None:
     try:
         if path.stat().st_size > MAX_SIZE:
@@ -196,7 +224,8 @@ def _identify(
 
     if best_score < min_confidence:
         return None
-    return Discovered(path.resolve(), best_name, best_score, origin)
+    return Discovered(path.resolve(), best_name, best_score, origin,
+                      source or best_name)
 
 
 #: Binaries that indicate an application is actually installed.
@@ -226,3 +255,50 @@ def installed_applications() -> set[str]:
         name for name, binaries in _BINARIES.items()
         if any(which(binary) for binary in binaries)
     }
+
+
+#: `source:neovim` and friends, for narrowing without fuzz.
+_FIELD = re.compile(r"^(source|src|format|fmt|origin)\s*:\s*(.*)$", re.I)
+_ALIASES = {"src": "source", "fmt": "format"}
+
+
+def filter_schemes(query: str, items: Iterable[Discovered]) -> list[Discovered]:
+    """Narrow and rank `items` by `query`.
+
+    A bare word is matched fuzzily against the name, source, format and
+    origin together, so `neovim` finds every scheme read out of neovim and
+    `b16sulph` finds base16-atelier-sulphurpool. A `source:`, `format:` or
+    `origin:` prefix constrains that field exactly instead, which is what you
+    want once you know the answer is "all the konsole ones".
+    """
+    constraints: list[tuple[str, str]] = []
+    free: list[str] = []
+
+    for term in query.split():
+        if match := _FIELD.match(term):
+            field = _ALIASES.get(match.group(1).lower(), match.group(1).lower())
+            constraints.append((field, match.group(2).lower()))
+        else:
+            free.append(term)
+
+    result = [
+        item for item in items
+        if all(value in getattr(item, field, "").lower() for field, value in constraints)
+    ]
+    if not free:
+        return result
+
+    # Every bare term has to match; the scores add up so a candidate matching
+    # two terms well outranks one matching a single term brilliantly.
+    ranked: list[tuple[int, int, Discovered]] = []
+    for position, item in enumerate(result):
+        total = 0
+        for term in free:
+            if (value := score(term, item.haystack)) is None:
+                break
+            total += value
+        else:
+            ranked.append((-total, position, item))
+
+    ranked.sort()
+    return [item for _, _, item in ranked]

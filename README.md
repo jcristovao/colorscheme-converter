@@ -132,9 +132,34 @@ it was found at along the bottom.
 ```
 a   apply to this terminal now      A   activate for an application
 u   undo the live preview           c   copy to another format
-/   filter by name or format        r   rescan
+/   filter (fuzzy — see below)      r   rescan
 q   quit
 ```
+
+### Filtering
+
+The browser's filter and `cscx list`'s optional query work identically.
+
+```console
+$ cscx list gruv                 # fuzzy, over name + source + format + origin
+$ cscx list b16sulph             # → base16-atelier-sulphurpool
+$ cscx list source:neovim gruv   # every gruvbox variant that came from neovim
+$ cscx list fmt:konsole dark
+```
+
+A bare word is matched as a *subsequence*, then ranked: an exact substring
+outranks a scattered match, a match starting a word outranks one mid-word, and
+adjacent characters outrank spread-out ones. Several bare words must all
+match, so `gruv dark` is narrower than either alone.
+
+`source:`, `format:` and `origin:` (short: `src:`, `fmt:`) constrain a field
+exactly instead. A prefix that isn't one of those is treated as ordinary text
+rather than a failed constraint.
+
+**Source is not format.** The source is the application a scheme came *from*;
+the format is how it's written. They usually agree — but neovim colorschemes
+are cached in kitty's format, so their source is `neovim` and their format is
+`kitty`. Listings show the source, because calling them kitty would mislead.
 
 **The preview is faithful for terminals, approximate for editors.** A terminal
 scheme *is* sixteen colors plus foreground and background, so the simulated
@@ -177,9 +202,9 @@ cscx: wrote 178 colorschemes to ~/.cache/cscx/nvim
 cscx: they now show up in `cscx browse` and `cscx list`
 ```
 
-They then appear in `browse`, `list` and `convert` with no special handling —
+They then appear in `browse`, `list` and `convert` as a first-class source —
 so you can take a neovim colorscheme and emit it as a kitty, alacritty or foot
-theme.
+theme. `source:neovim` in the filter narrows to just those.
 
 **Two tiers, and each file says which it got.**
 
