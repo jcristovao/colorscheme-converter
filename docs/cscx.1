@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.10.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.11.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -476,6 +476,33 @@ scheme is sixteen colors plus foreground and background, so the simulated
 shell session shows exactly what the real one will look like. The syntax
 sample is painted with the base16 roles the editor writers assign, which shows
 the mapping rather than any editor's own rendering.
+.SS Navigation
+Arrow keys work throughout. The vim keys work alongside them:
+.B j
+and
+.B k
+move down and up,
+.B g
+and
+.B G
+jump to the first and last entry, and
+.B "ctrl+d" / "ctrl+u"
+move by ten.
+.PP
+.B l
+moves right into the preview and
+.B h
+moves back to the list.
+.B j
+and
+.B k
+scroll whichever of the two has focus, so
+.B l
+followed by
+.B j
+scrolls the preview rather than quietly moving the selection behind it.
+.PP
+None of these apply while the filter has focus, where they are simply typed.
 .SS Keys
 .TP
 .B /

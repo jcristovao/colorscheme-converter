@@ -45,6 +45,9 @@ __all__ = ["BrowseApp", "run"]
 #: anything written here shows up in the list on the next rescan.
 DEFAULT_OUTPUT = Path("~/.config/cscx/themes")
 
+#: How far ctrl+d and ctrl+u move through the list.
+_PAGE = 10
+
 
 @dataclass(frozen=True, slots=True)
 class Target:
@@ -210,6 +213,18 @@ class BrowseApp(App[None]):
         Binding("A", "activate", "Activate"),
         Binding("r", "rescan", "Rescan"),
         Binding("escape", "focus_list", "Back to list", show=False),
+
+        # vim navigation alongside the arrow keys. These only reach the app
+        # when the filter does not have focus, since an Input consumes
+        # printable keys -- so typing "j" into the filter still types a "j".
+        Binding("j", "nav_down", "Down", show=False),
+        Binding("k", "nav_up", "Up", show=False),
+        Binding("l", "focus_preview", "Preview pane", show=False),
+        Binding("h", "focus_list", "List pane", show=False),
+        Binding("g", "nav_first", "Top", show=False),
+        Binding("G", "nav_last", "Bottom", show=False),
+        Binding("ctrl+d", "nav_page_down", "Half page down", show=False),
+        Binding("ctrl+u", "nav_page_up", "Half page up", show=False),
     ]
 
     def __init__(
@@ -252,8 +267,10 @@ class BrowseApp(App[None]):
     def on_mount(self) -> None:
         self.title = f"cscx {__version__}"
         self.action_rescan()
+        # The preview has to be focusable for `l` to move into it.
+        self.query_one("#preview-pane", VerticalScroll).can_focus = True
         # The list takes focus, not the filter: single-key bindings like `c`
-        # and `r` would otherwise be typed into the filter field instead.
+        # and `j` would otherwise be typed into the filter field instead.
         self.query_one("#schemes", OptionList).focus()
 
     # -- data ------------------------------------------------------------
@@ -351,6 +368,63 @@ class BrowseApp(App[None]):
 
     def action_focus_list(self) -> None:
         self.query_one("#schemes", OptionList).focus()
+
+    def action_focus_preview(self) -> None:
+        """`l` moves right, into the preview, where j/k then scroll it."""
+        self.query_one("#preview-pane", VerticalScroll).focus()
+
+    # -- vim-style navigation ---------------------------------------------
+    #
+    # j and k mean "down" and "up" in whichever pane has focus, which is what
+    # makes `l j j` scroll the preview rather than quietly moving the list
+    # behind it.
+
+    def _preview_pane(self) -> VerticalScroll | None:
+        pane = self.query_one("#preview-pane", VerticalScroll)
+        return pane if self.focused is pane else None
+
+    def _move(self, delta: int) -> None:
+        options = self.query_one("#schemes", OptionList)
+        if not self._shown:
+            return
+        current = options.highlighted or 0
+        options.highlighted = max(0, min(len(self._shown) - 1, current + delta))
+
+    def action_nav_down(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_down()
+            return
+        self._move(1)
+
+    def action_nav_up(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_up()
+            return
+        self._move(-1)
+
+    def action_nav_first(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_home()
+            return
+        self._move(-len(self._shown))
+
+    def action_nav_last(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_end()
+            return
+        self._move(len(self._shown))
+
+    def action_nav_page_down(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_page_down()
+            return
+        self._move(_PAGE)
+
+    def action_nav_page_up(self) -> None:
+        if (pane := self._preview_pane()) is not None:
+            pane.scroll_page_up()
+            return
+        self._move(-_PAGE)
 
     def action_copy_to(self) -> None:
         if not (found := self.current()):

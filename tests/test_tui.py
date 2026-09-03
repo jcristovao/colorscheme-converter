@@ -395,3 +395,127 @@ async def test_rows_show_the_source_not_the_container_format():
         await pilot.pause()
         row = app.query_one("#schemes").get_option_at_index(0).prompt
         assert "fixtures" in row.plain
+
+
+# -- vim navigation -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_j_and_k_move_through_the_list():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        first = app.current()
+
+        await pilot.press("j")
+        await pilot.pause()
+        second = app.current()
+        assert second != first
+
+        await pilot.press("k")
+        await pilot.pause()
+        assert app.current() == first
+
+
+@pytest.mark.asyncio
+async def test_arrow_keys_still_work():
+    """hjkl is an addition, not a replacement."""
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        first = app.current()
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.current() != first
+
+
+@pytest.mark.asyncio
+async def test_g_and_shift_g_jump_to_the_ends():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("G")
+        await pilot.pause()
+        assert app.current() == app._shown[-1]
+
+        await pilot.press("g")
+        await pilot.pause()
+        assert app.current() == app._shown[0]
+
+
+@pytest.mark.asyncio
+async def test_navigation_stops_at_the_ends():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        for _ in range(5):
+            await pilot.press("k")          # already at the top
+        await pilot.pause()
+        assert app.current() == app._shown[0]
+
+        for _ in range(len(app._shown) + 5):
+            await pilot.press("j")
+        await pilot.pause()
+        assert app.current() == app._shown[-1]
+
+
+@pytest.mark.asyncio
+async def test_ctrl_d_and_ctrl_u_move_further_than_one_row():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("ctrl+d")
+        await pilot.pause()
+        moved = app.query_one("#schemes").highlighted
+        assert moved > 1
+
+        await pilot.press("ctrl+u")
+        await pilot.pause()
+        assert app.query_one("#schemes").highlighted == 0
+
+
+@pytest.mark.asyncio
+async def test_l_moves_into_the_preview_and_h_comes_back():
+    from textual.containers import VerticalScroll
+    from textual.widgets import OptionList
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("l")
+        await pilot.pause()
+        assert isinstance(app.focused, VerticalScroll)
+
+        await pilot.press("h")
+        await pilot.pause()
+        assert isinstance(app.focused, OptionList)
+
+
+@pytest.mark.asyncio
+async def test_j_scrolls_the_preview_once_it_has_focus():
+    """Otherwise `l` then `j` would silently move the list behind the preview."""
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        selected = app.current()
+
+        await pilot.press("l")
+        await pilot.pause()
+        for _ in range(3):
+            await pilot.press("j")
+        await pilot.pause()
+
+        assert app.current() == selected
+
+
+@pytest.mark.asyncio
+async def test_letters_typed_into_the_filter_are_not_navigation():
+    """The filter must accept j, k, g and q as text."""
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        app.query_one("#filter").focus()
+        await pilot.press("j", "k", "g", "q")
+        await pilot.pause()
+        assert app.query_one("#filter").value == "jkgq"
+        assert app.is_running

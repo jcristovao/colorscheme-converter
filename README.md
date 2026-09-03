@@ -130,11 +130,20 @@ the list on the left, a preview of the highlighted one on the right, the path
 it was found at along the bottom.
 
 ```
+j k / ↓ ↑   move            g G          first / last
+h l         list / preview  ctrl+d ctrl+u   move by ten
+
 a   apply to this terminal now      A   activate for an application
 u   undo the live preview           c   copy to another format
 /   filter (fuzzy — see below)      r   rescan
 q   quit
 ```
+
+Arrow keys work throughout; the vim keys work alongside them. `l` moves right
+into the preview and `h` back to the list, and `j`/`k` scroll whichever pane
+has focus — so `l` then `j` scrolls the preview rather than quietly moving the
+selection behind it. None of them apply while the filter has focus, where they
+are simply typed.
 
 ### Filtering
 
