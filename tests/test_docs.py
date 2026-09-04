@@ -23,7 +23,24 @@ MAN_TEXT = MAN_PAGE.read_text()
 #: names is far clearer against an unescaped copy.
 MAN_PLAIN = MAN_TEXT.replace("\\-", "-")
 README_TEXT = README.read_text()
+
+#: The prose documentation, README first. The README is the entry point and
+#: stays short, so a subject may be written up on one of the pages it links
+#: to; "documented" means documented somewhere in this set.
+GUIDES = sorted((ROOT / "docs").glob("*.md"))
+DOCS_TEXT = README_TEXT + "\n".join(page.read_text() for page in GUIDES)
+
 FORMATS = sorted({p.NAME for p in PARSERS.values()})
+
+#: `[text](target)`, ignoring images and bare autolinks.
+_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+
+
+def _links(page: Path) -> list[str]:
+    return [
+        target for target in _LINK.findall(page.read_text())
+        if not target.startswith(("http://", "https://", "#"))
+    ]
 
 
 def test_the_man_page_exists_and_is_installed():
@@ -70,19 +87,19 @@ def test_the_man_page_renders():
 @pytest.mark.parametrize("name", FORMATS)
 def test_every_format_is_documented(name):
     assert name in MAN_PLAIN, f"{name} missing from the man page"
-    assert name in README_TEXT, f"{name} missing from the README"
+    assert name in DOCS_TEXT, f"{name} missing from README.md and docs/"
 
 
 @pytest.mark.parametrize("name", sorted(EDITORS))
 def test_every_editor_is_documented(name):
     assert name in MAN_PLAIN, f"{name} missing from the man page"
-    assert name in README_TEXT, f"{name} missing from the README"
+    assert name in DOCS_TEXT, f"{name} missing from README.md and docs/"
 
 
 @pytest.mark.parametrize("command", ["convert", "parse", "detect", "formats"])
 def test_every_command_is_documented(command):
     assert command in MAN_PLAIN
-    assert command in README_TEXT
+    assert command in DOCS_TEXT
 
 
 def test_the_man_page_covers_every_cli_option():
@@ -101,3 +118,40 @@ def test_the_man_page_covers_every_cli_option():
         for option in action.option_strings:
             if option.startswith("--") and option != "--help":
                 assert option in documented, f"{option} is undocumented"
+
+
+# -- the prose set holds together -----------------------------------------
+
+
+def _anchors(page: Path) -> set[str]:
+    """GitHub's heading slugs: lowercase, punctuation dropped, spaces hyphened."""
+    found = set()
+    for heading in re.findall(r"^#{1,6}\s+(.*)$", page.read_text(), re.M):
+        text = re.sub(r"[`*_]", "", heading).strip().lower()
+        text = re.sub(r"[^\w\s-]", "", text)
+        found.add(re.sub(r"\s+", "-", text))
+    return found
+
+
+@pytest.mark.parametrize("page", [README, *GUIDES], ids=lambda p: p.name)
+def test_every_link_resolves(page):
+    """A split README is only an improvement while the links still work."""
+    for target in _links(page):
+        path, _, anchor = target.partition("#")
+        destination = (page.parent / path).resolve() if path else page
+        assert destination.is_file(), f"{page.name}: {target} does not exist"
+        if anchor:
+            assert anchor in _anchors(destination), \
+                f"{page.name}: {target} names no heading in {destination.name}"
+
+
+def test_every_guide_is_reachable_from_the_readme():
+    """A page nothing links to is a page nobody reads."""
+    linked = {(README.parent / t.partition("#")[0]).resolve() for t in _links(README)}
+    for page in GUIDES:
+        assert page.resolve() in linked, f"{page.name} is not linked from the README"
+
+
+def test_the_readme_stays_an_entry_point():
+    """It is the front page, not the manual; detail belongs on a linked page."""
+    assert len(README_TEXT.splitlines()) < 250

@@ -576,8 +576,7 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
     Terminal emitters and editor writers take different arguments, so they are
     wrapped into one shape here rather than complicating either protocol.
     """
-    if target in EDITORS:
-        editor = get_editor(target)
+    if (editor := _as_editor(target)) is not None:
         return (
             editor.NAME,
             editor.FILENAME,
@@ -588,13 +587,35 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
                 contrast_target=args.contrast,
             ),
         )
-    emitter = get_emitter(target)
+    try:
+        emitter = get_emitter(target)
+    except KeyError:
+        # Neither an editor nor a terminal format. `get_emitter` would name
+        # only the terminal formats, which reads as "editors are unsupported"
+        # rather than "that is not one of them".
+        raise KeyError(
+            f"unknown target {target!r}; known: {', '.join(_target_names())}"
+        ) from None
     return (
         emitter.NAME,
         f"{{name}}.{emitter.NAME}{emitter.EXTENSION}",
         emitter.BINARY,
         lambda palette: emitter.emit(palette, derived),
     )
+
+
+def _as_editor(target: str):
+    """The editor writer for `target`, or None if it names something else.
+
+    Goes through `get_editor` rather than testing membership of `EDITORS`, so
+    that the aliases it knows about -- `nvim`, `hx`, `code`, `cc` -- work for
+    `--to` as well. Testing membership silently sent them on to the emitters,
+    where they failed with a list of formats that did not mention editors.
+    """
+    try:
+        return get_editor(target)
+    except KeyError:
+        return None
 
 
 def _write_all(palette, writers, directory: Path) -> int:

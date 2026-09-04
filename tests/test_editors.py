@@ -842,3 +842,52 @@ def test_to_all_reports_shared_filenames_instead_of_overwriting(gruvbox, tmp_pat
     assert "identical" in errors
     assert "DIFFERENT CONTENT" not in errors
     assert len(list(out.glob("*-color-theme.json"))) == 1
+
+
+@pytest.mark.parametrize("alias,editor", [
+    ("nvim", "neovim"), ("hx", "helix"), ("code", "vscode"),
+    ("ag", "antigravity"), ("claude", "claude-code"), ("cc", "claude-code"),
+    ("vi", "vim"),
+])
+def test_convert_accepts_the_documented_editor_aliases(alias, editor, gruvbox,
+                                                       tmp_path):
+    """`--to nvim` used to fail with a list naming no editor at all.
+
+    The alias table lived in `get_editor`, but `convert` resolved its target by
+    testing membership of `EDITORS`, so every alias fell through to the
+    emitters -- which reported "known: alacritty, foot, ..." and left the
+    documented spelling looking like an unsupported target.
+    """
+    from cscx.cli import main
+
+    source = tmp_path / "src.conf"
+    source.write_text((FIXTURES / "gruvbox.kitty.conf").read_text())
+
+    written = {}
+    for target in (alias, editor):
+        out = tmp_path / f"{target}.out"
+        assert main(["convert", str(source), "--to", target, "-o", str(out)]) == 0
+        written[target] = out.read_bytes()
+
+    assert written[alias] == written[editor]
+
+
+def test_no_editor_alias_shadows_a_terminal_format():
+    """Editors are resolved first, so a collision would hide the format."""
+    from cscx.editors import _ALIASES as EDITOR_ALIASES
+    from cscx.emitters import _ALIASES as FORMAT_ALIASES
+    from cscx.emitters import EMITTERS
+
+    formats = set(EMITTERS) | set(FORMAT_ALIASES)
+    assert not (set(EDITOR_ALIASES) | set(EDITORS)) & formats
+
+
+def test_an_unknown_target_names_editors_too(gruvbox, tmp_path, capsys):
+    from cscx.cli import main
+
+    source = tmp_path / "src.conf"
+    source.write_text((FIXTURES / "gruvbox.kitty.conf").read_text())
+
+    assert main(["convert", str(source), "--to", "notepad"]) == 1
+    errors = capsys.readouterr().err
+    assert "neovim" in errors and "kitty" in errors
