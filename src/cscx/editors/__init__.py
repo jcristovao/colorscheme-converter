@@ -43,7 +43,7 @@ class Editor(Protocol):
         palette: Palette,
         *,
         terminal_exact: bool = False,
-        contrast_target: float = CONTRAST_TARGET,
+        contrast_target: float | None = None,
     ) -> str: ...
 
 
@@ -81,7 +81,7 @@ def emit_theme(
     editor: str,
     *,
     terminal_exact: bool = False,
-    contrast_target: float = CONTRAST_TARGET,
+    contrast_target: float | None = None,
 ) -> str:
     """Render `palette` as a theme for `editor`."""
     return get_editor(editor).emit(
@@ -93,7 +93,7 @@ def theme_warnings(
     palette: Palette,
     *,
     terminal_exact: bool = False,
-    contrast_target: float = CONTRAST_TARGET,
+    contrast_target: float | None = None,
 ) -> list[str]:
     """Problems worth telling the user about before writing a theme.
 

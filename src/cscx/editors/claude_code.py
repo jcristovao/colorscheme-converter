@@ -216,7 +216,7 @@ def emit(
     palette: Palette,
     *,
     terminal_exact: bool = False,
-    contrast_target: float = CONTRAST_TARGET,
+    contrast_target: float | None = None,
 ) -> str:
     """Render `palette` as a Claude Code custom theme.
 

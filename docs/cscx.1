@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.13.1" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.14.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -74,6 +74,12 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .B cscx active
 .RB [ \-\-no\-editors ]
 .RB [ \-\-json ]
+.br
+.B cscx mapping
+.RB [ \-\-dump ]
+.RB [ \-\-check ]
+.RB [ \-\-path
+.IR FILE ]
 .br
 .B cscx formats
 .
@@ -164,6 +170,12 @@ Show which scheme each application is currently using. See
 .B DETECTING THE ACTIVE SCHEME
 below.
 .TP
+.B mapping
+Show the tunable half of the editor mapping, and where its optional override
+file would be. See
+.B TUNING THE EDITOR MAPPING
+below.
+.TP
 .B formats
 List every readable format and writable editor, with file extensions, accepted
 aliases, and where a generated editor theme belongs.
@@ -249,6 +261,14 @@ is scanned one level deep. Repeatable. Accepted by
 .B browse
 and
 .BR list .
+.TP
+.B \-\-dump
+.B mapping
+only. Print the effective mapping as TOML, to copy from. Nothing is written.
+.TP
+.B \-\-check
+.B mapping
+only. Validate the override file and report nothing if it is usable.
 .TP
 .B \-\-list
 .B nvim\-themes
@@ -768,6 +788,81 @@ are cached in kitty's format, so their source is
 and their format is
 .IR kitty .
 Listings show the source, because calling them kitty would be misleading.
+.
+.SH TUNING THE EDITOR MAPPING
+Turning sixteen terminal colors into an editor theme takes judgement: which
+ANSI hue stands for variables, how far the derived interface shades step, how
+readable a comment has to be. Those choices have defaults, and the defaults
+need no configuration \(em
+.B cscx
+works with no file present, which is the normal case.
+.PP
+When a default is not to your taste,
+.I ~/.config/cscx/mapping.toml
+overrides it:
+.PP
+.RS
+.EX
+[roles]
+base08 = 4          # variables: blue rather than red
+
+[ramp]
+base02 = 0.35       # a heavier selection
+comment_contrast = 7.0
+.EE
+.RE
+.PP
+The file is an overlay, not a copy of the defaults, and it is never written
+for you.
+.B cscx mapping \-\-dump
+prints the current values to standard output if you want somewhere to start.
+Writing only what you change means everything else keeps tracking the program:
+a generated copy of the defaults would freeze at the version that produced it,
+and silently shadow later corrections.
+.SS What can be tuned
+.TP
+.B [roles]
+The eight base16 accent roles, each set to an ANSI slot 0\-15. base08 is
+variables and deletions, base0A types, base0B strings, base0C escapes, base0D
+functions, base0E keywords. base09 and base0F are blended from color1 and
+color3 by default, since no terminal slot holds the orange and brown they
+want; naming a slot pins them instead.
+.PP
+base00 and base05 are the background and foreground, and base01 to base04,
+base06 and base07 are the derived ramp, so none of those is an ANSI slot
+anybody can reassign.
+.TP
+.B [ramp]
+How far each derived shade steps, as a fraction from the background toward the
+foreground:
+.IR base01 ,
+.IR base02 ,
+.I base04
+and, continuing past the foreground,
+.I base06
+and
+.IR base07 .
+Also
+.IR comment_contrast ,
+the ratio comments must clear, searched between
+.I comment_floor
+and
+.IR comment_ceiling .
+.PP
+An explicit
+.B \-\-contrast
+on the command line still wins over the file.
+.SS What cannot, and why
+The tables describing another program's interface are not exposed: Claude
+Code's token names, VS Code's colour keys, Helix's scope names, each format's
+own key spellings. Those are not preferences. A wrong value in one does not
+produce a theme that looks different \(em it produces one the application
+silently ignores, which is a failure with nothing to see and nothing to read.
+.PP
+Overrides that
+.B are
+exposed are validated strictly for the same reason. An unrecognised role or
+ramp key is an error naming the alternatives, never a line quietly skipped.
 .
 .SH CLAUDE CODE
 Claude Code is themable. It ships six presets \(em

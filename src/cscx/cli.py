@@ -181,6 +181,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="export just this colorscheme; repeatable",
     )
 
+    mapping = subparsers.add_parser(
+        "mapping",
+        help="show or check the optional overrides for the editor mapping",
+    )
+    mapping.add_argument(
+        "--dump", action="store_true",
+        help="print the effective mapping as TOML, to copy from",
+    )
+    mapping.add_argument(
+        "--check", action="store_true",
+        help="validate the override file and say nothing if it is fine",
+    )
+    mapping.add_argument(
+        "--path", type=Path, metavar="FILE",
+        help="use this file instead of ~/.config/cscx/mapping.toml",
+    )
+
     subparsers.add_parser("formats", help="list supported formats")
     return parser
 
@@ -211,7 +228,58 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_active(args)
         case "nvim-themes":
             return _cmd_nvim_themes(args)
+        case "mapping":
+            return _cmd_mapping(args)
     return 2
+
+
+def _cmd_mapping(args: argparse.Namespace) -> int:
+    from .mapping import (
+        ACCENT_ROLES,
+        MappingError,
+        config_path,
+        dump,
+        load,
+    )
+
+    target = args.path or config_path()
+    try:
+        effective = load(args.path, use_cache=False)
+    except MappingError as exc:
+        print(f"cscx: {exc}", file=sys.stderr)
+        return 1
+
+    if args.check:
+        if not target.is_file():
+            print(f"cscx: no override file at {target}; the defaults apply",
+                  file=sys.stderr)
+        return 0
+
+    if args.dump:
+        print(dump(effective), end="")
+        if args.path is None:
+            print(f"\ncscx: nothing was written; save this to {target} to use it",
+                  file=sys.stderr)
+        return 0
+
+    print(f"override file  {target}"
+          f"{'' if target.is_file() else '   (absent, defaults apply)'}")
+    print()
+    print("roles          base16 accent -> ANSI slot")
+    for role in ACCENT_ROLES:
+        slot = effective.accents.get(role)
+        shown = f"color{slot}" if slot is not None else "blended from color1/color3"
+        print(f"  {role:8}     {shown}")
+    print()
+    print("ramp           fraction from background toward foreground")
+    for key, value in effective.ramp.items():
+        print(f"  {key:8}     {value}")
+    print(f"  comments     {effective.comment_contrast}:1 minimum, searched "
+          f"{effective.comment_floor}-{effective.comment_ceiling}")
+    print()
+    print("cscx mapping --dump  prints this as TOML to copy from",
+          file=sys.stderr)
+    return 0
 
 
 def _cmd_nvim_themes(args: argparse.Namespace) -> int:
@@ -517,9 +585,7 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
             lambda palette: editor.emit(
                 palette,
                 terminal_exact=args.terminal_exact,
-                contrast_target=(
-                    CONTRAST_TARGET if args.contrast is None else args.contrast
-                ),
+                contrast_target=args.contrast,
             ),
         )
     emitter = get_emitter(target)
@@ -577,7 +643,7 @@ def _report_theme_warnings(palette, args: argparse.Namespace) -> None:
         warnings = theme_warnings(
             palette,
             terminal_exact=args.terminal_exact,
-            contrast_target=CONTRAST_TARGET if args.contrast is None else args.contrast,
+            contrast_target=args.contrast,
         )
     except EditorPaletteError:
         return

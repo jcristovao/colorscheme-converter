@@ -16,6 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..color import Color, contrast_ratio, is_dark, mix
+from ..mapping import Mapping, load as load_mapping
 from ..palette import Palette
 
 __all__ = [
@@ -89,9 +90,19 @@ def derive(
     palette: Palette,
     *,
     terminal_exact: bool = False,
-    contrast_target: float = CONTRAST_TARGET,
+    contrast_target: float | None = None,
+    mapping: Mapping | None = None,
 ) -> Roles:
-    """Build the sixteen base16 roles from a terminal palette."""
+    """Build the sixteen base16 roles from a terminal palette.
+
+    `mapping` supplies the tunable half -- which ANSI hue each accent takes,
+    how far the derived shades step, how readable comments must be. It is
+    loaded from the optional override file when not given, and an explicit
+    `contrast_target` still wins over both.
+    """
+    mapping = mapping or load_mapping()
+    if contrast_target is None:
+        contrast_target = mapping.comment_contrast
     if gaps := palette.missing():
         # The eight normal hues are the floor: an absent hue has nothing to be
         # derived from, so --fill cannot help and saying otherwise misleads.
@@ -118,10 +129,10 @@ def derive(
     if terminal_exact:
         _exact_ramp(palette, slots, provenance, warnings)
     else:
-        _derived_ramp(palette, slots, provenance, dark)
+        _derived_ramp(palette, slots, provenance, dark, mapping)
 
-    _comments(slots, provenance, warnings, terminal_exact, contrast_target)
-    _accents(palette, slots, provenance, terminal_exact)
+    _comments(slots, provenance, warnings, terminal_exact, contrast_target, mapping)
+    _accents(palette, slots, provenance, terminal_exact, mapping)
 
     # Carry the terminal's own cursor and selection through, so the editor
     # agrees with the terminal it was generated from wherever it can.
@@ -144,18 +155,20 @@ def derive(
     )
 
 
-def _derived_ramp(palette, slots, provenance, dark) -> None:
+def _derived_ramp(palette, slots, provenance, dark, mapping) -> None:
     """Synthesise the UI shades by stepping from background toward foreground."""
     background, foreground = slots["base00"], slots["base05"]
 
-    for role, t in (("base01", 0.10), ("base02", 0.22), ("base04", 0.72)):
+    for role, default in (("base01", 0.10), ("base02", 0.22), ("base04", 0.72)):
+        t = mapping.step(role, default)
         slots[role] = mix(background, foreground, t)
         provenance[role] = f"{int(t * 100)}% background -> foreground"
 
     # base06 and base07 continue past the foreground, toward whichever
     # extreme the theme is heading for.
     extreme = Color(255, 255, 255) if dark else Color(0, 0, 0)
-    for role, t in (("base06", 0.25), ("base07", 0.50)):
+    for role, default in (("base06", 0.25), ("base07", 0.50)):
+        t = mapping.step(role, default)
         slots[role] = mix(foreground, extreme, t)
         provenance[role] = f"{int(t * 100)}% foreground -> {'white' if dark else 'black'}"
 
@@ -175,7 +188,7 @@ def _exact_ramp(palette, slots, provenance, warnings) -> None:
         )
 
 
-def _comments(slots, provenance, warnings, terminal_exact, target) -> None:
+def _comments(slots, provenance, warnings, terminal_exact, target, mapping) -> None:
     """Pick base03 -- comments and line numbers -- and prove it is readable."""
     background = slots["base00"]
 
@@ -193,8 +206,8 @@ def _comments(slots, provenance, warnings, terminal_exact, target) -> None:
     # Step away from the background until comments clear the target, so a
     # low-contrast source scheme cannot produce unreadable comments.
     foreground = slots["base05"]
-    floor = int(COMMENT_BLEND_FLOOR * 100)
-    ceiling = int(COMMENT_BLEND_CEILING * 100)
+    floor = int(mapping.comment_floor * 100)
+    ceiling = int(mapping.comment_ceiling * 100)
 
     for step in range(floor, ceiling + 1):
         candidate = mix(background, foreground, step / 100)
@@ -207,7 +220,7 @@ def _comments(slots, provenance, warnings, terminal_exact, target) -> None:
 
     # The scheme has too little room between background and foreground. Stop
     # at the ceiling rather than collapsing comments onto normal text.
-    capped = mix(background, foreground, COMMENT_BLEND_CEILING)
+    capped = mix(background, foreground, mapping.comment_ceiling)
     slots["base03"] = capped
     provenance["base03"] = f"{ceiling}% background -> foreground, contrast-capped"
     warnings.append(
@@ -217,23 +230,33 @@ def _comments(slots, provenance, warnings, terminal_exact, target) -> None:
     )
 
 
-def _accents(palette, slots, provenance, terminal_exact) -> None:
+def _accents(palette, slots, provenance, terminal_exact, mapping) -> None:
     """Assign the eight accent roles from the ANSI hues."""
-    for role, index in _ACCENTS.items():
+    for role, default in _ACCENTS.items():
+        index = mapping.accent(role, default)
         slots[role] = palette.ansi[index]
         provenance[role] = f"color{index}"
 
     # base09 (constants, numbers) wants orange, and base0F (deprecated) brown.
     # No terminal slot holds either, so exact mode borrows the bright variants
     # and derived mode blends the red and yellow that bracket them.
+    for role, exact_slot in (("base09", 9), ("base0F", 13)):
+        if (chosen := mapping.accent(role, None)) is not None:
+            slots[role] = palette.ansi[chosen]
+            provenance[role] = f"color{chosen}"
+
+    if "base09" in slots and "base0F" in slots:
+        return
     if terminal_exact:
-        slots["base09"] = palette.ansi[9]
-        provenance["base09"] = "color9"
-        slots["base0F"] = palette.ansi[13]
-        provenance["base0F"] = "color13"
+        slots.setdefault("base09", palette.ansi[9])
+        provenance.setdefault("base09", "color9")
+        slots.setdefault("base0F", palette.ansi[13])
+        provenance.setdefault("base0F", "color13")
     else:
         red, yellow = palette.ansi[1], palette.ansi[3]
-        slots["base09"] = mix(red, yellow, 0.50)
-        provenance["base09"] = "50% color1 -> color3"
-        slots["base0F"] = mix(red, yellow, 0.25)
-        provenance["base0F"] = "25% color1 -> color3"
+        if "base09" not in slots:
+            slots["base09"] = mix(red, yellow, 0.50)
+            provenance["base09"] = "50% color1 -> color3"
+        if "base0F" not in slots:
+            slots["base0F"] = mix(red, yellow, 0.25)
+            provenance["base0F"] = "25% color1 -> color3"

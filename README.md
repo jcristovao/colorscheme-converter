@@ -509,6 +509,49 @@ derive prompt for `--fill`; a missing *hue* — one of the eight normal ANSI
 colors — is refused outright, because nothing can derive an absent hue from
 the others.
 
+## Tuning the mapping (optional)
+
+Turning sixteen terminal colours into an editor theme takes judgement: which
+ANSI hue means "variable", how far the interface shades step, how readable a
+comment must be. Those have defaults and **need no configuration** — cscx
+works with no file present, which is the normal case.
+
+When a default isn't to your taste, `~/.config/cscx/mapping.toml` overrides it:
+
+```toml
+[roles]
+base08 = 4          # variables: blue rather than red
+
+[ramp]
+base02 = 0.35       # a heavier selection
+comment_contrast = 7.0
+```
+
+```console
+$ cscx mapping           # what is in effect, and where the file would be
+$ cscx mapping --dump    # the same as TOML, to stdout — never written for you
+$ cscx mapping --check   # validate a file
+```
+
+**An overlay, not a generated default.** Writing only what you change means
+everything else keeps tracking the code. A dumped copy of the defaults would
+freeze at the version that produced it and silently shadow later corrections —
+the same drift that has caught this project more than once. It also keeps
+`activate` the only thing that writes into a config directory.
+
+**Validation is loud.** An unrecognised role or ramp key is an error naming
+the alternatives, never a quietly skipped line.
+
+### What isn't exposed, and why
+
+The tables describing another program's interface — Claude Code's token names,
+VS Code's colour keys, Helix's scopes, each format's own key spellings — stay
+in code. Those aren't preferences. A wrong value there doesn't produce a theme
+that looks different; it produces one the application **silently ignores**,
+which is a failure with nothing to see and nothing to read. That has already
+happened three times in this project's history, and each time the fix was to
+verify against the real thing rather than to make it easier to get wrong.
+
 ## Design notes
 
 **Nothing is invented.** Every `Palette` field starts as `None` and is only set

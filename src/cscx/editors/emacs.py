@@ -36,7 +36,7 @@ def emit(
     palette: Palette,
     *,
     terminal_exact: bool = False,
-    contrast_target: float = CONTRAST_TARGET,
+    contrast_target: float | None = None,
 ) -> str:
     roles = derive(palette, terminal_exact=terminal_exact, contrast_target=contrast_target)
     name = slug(palette.name)

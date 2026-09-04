@@ -36,7 +36,7 @@ class _VSCodeFork:
         palette: Palette,
         *,
         terminal_exact: bool = False,
-        contrast_target: float = CONTRAST_TARGET,
+        contrast_target: float | None = None,
     ) -> str:
         return vscode.emit(
             palette, terminal_exact=terminal_exact, contrast_target=contrast_target
