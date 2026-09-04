@@ -623,3 +623,122 @@ def test_the_help_explains_what_the_list_shows():
         description for _section, rows in HELP for _keys, description in rows
     )
     assert "source" in text and "in use" in text.lower() or "currently using" in text
+
+
+# -- the copy dialog ------------------------------------------------------
+#
+# `test_every_convertible_target_is_offered` checks the model and passed while
+# the dialog showed ten of seventeen targets with nothing to say so. These
+# check what a person can actually reach.
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("size", [(120, 40), (100, 30), (100, 24), (90, 20)])
+async def test_any_target_is_reachable_however_short_the_terminal(size):
+    from cscx.editors import EDITORS
+    from cscx.emitters import EMITTERS
+
+    app = make_app()
+    async with app.run_test(size=size) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+
+        for name in sorted(set(EMITTERS) | set(EDITORS)):
+            app.screen.query_one("#copy-filter").value = name
+            await pilot.pause()
+            shown = [t.name for t in app.screen._shown]
+            assert name in shown, f"{name} unreachable at {size}"
+            assert app.screen.highlighted() is not None
+
+
+@pytest.mark.asyncio
+async def test_the_filter_takes_focus_so_typing_narrows():
+    app = make_app()
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        assert app.screen.focused.id == "copy-filter"
+
+        for char in "claude":
+            await pilot.press(char)
+        await pilot.pause()
+        assert [t.name for t in app.screen._shown] == ["claude-code"]
+
+
+@pytest.mark.asyncio
+async def test_up_and_down_drive_the_list_from_the_filter():
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        first = app.screen.highlighted()
+
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.screen.highlighted() != first
+
+        await pilot.press("up")
+        await pilot.pause()
+        assert app.screen.highlighted() == first
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "target,expected",
+    [
+        ("claude-code", ".claude/themes"),
+        ("neovim", ".config/nvim/colors"),
+        ("kitty", ".config/kitty/themes"),
+        ("konsole", ".local/share/konsole"),
+    ],
+)
+async def test_the_destination_is_where_that_application_looks(target, expected):
+    """A theme written where the program never looks does nothing at all."""
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        app.screen.query_one("#copy-filter").value = target
+        await pilot.pause()
+        assert expected in app.screen.query_one("#copy-path").value
+
+
+@pytest.mark.asyncio
+async def test_targets_with_no_conventional_home_fall_back_to_the_cscx_directory():
+    """iTerm2 and friends have no single place a theme belongs."""
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        app.screen.query_one("#copy-filter").value = "iterm2"
+        await pilot.pause()
+        assert ".config/cscx/themes" in app.screen.query_one("#copy-path").value
+
+
+@pytest.mark.asyncio
+async def test_copying_to_claude_code_writes_a_theme_claude_code_would_load(tmp_path):
+    import json
+
+    from tests.test_claude_code import CLAUDE_CODE_TOKENS
+
+    app = make_app()
+    async with app.run_test(size=(100, 24)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        app.screen.query_one("#copy-filter").value = "claude-code"
+        await pilot.pause()
+
+        destination = tmp_path / "argonaut.json"
+        app.screen.query_one("#copy-path").value = str(destination)
+        await pilot.press("enter")
+        await pilot.pause()
+
+    document = json.loads(destination.read_text())
+    assert set(document) == {"name", "base", "overrides"}
+    assert not set(document["overrides"]) - CLAUDE_CODE_TOKENS

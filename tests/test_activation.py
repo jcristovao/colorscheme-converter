@@ -288,3 +288,29 @@ def test_activating_into_an_empty_home_creates_the_config(home, gruvbox):
     assert config.is_file()
     assert "include=" in config.read_text()
     assert (home / ".config/foot/themes/test.ini").is_file()
+
+
+def test_a_plan_says_where_the_theme_itself_goes(home, gruvbox):
+    """`browse`'s copy needs this without matching on the description prose."""
+    for app, expected in (
+        ("kitty", ".config/kitty/themes"),
+        ("claude-code", ".claude/themes"),
+        ("konsole", ".local/share/konsole"),
+        ("neovim", ".config/nvim/colors"),
+    ):
+        path = plan(gruvbox, app, name="Test").theme_path
+        assert path is not None and expected in str(path), app
+
+
+def test_the_theme_step_is_not_the_config_edit(home, gruvbox):
+    proposed = plan(gruvbox, "kitty", name="Test")
+    theme = [step for step in proposed.steps if step.is_theme]
+    assert len(theme) == 1
+    assert not theme[0].edits_existing
+    assert proposed.theme_path == theme[0].path
+
+
+def test_vscode_points_at_the_theme_not_the_manifest(home, gruvbox):
+    assert plan(gruvbox, "vscode", name="Test").theme_path.name.endswith(
+        "-color-theme.json"
+    )

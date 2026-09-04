@@ -56,6 +56,10 @@ class Step:
     description: str
     #: True when the file already exists and will therefore be backed up.
     edits_existing: bool = False
+    #: True for the step that writes the scheme itself, as opposed to the
+    #: config edit that points at it. Callers that only want to place a theme
+    #: -- `cscx browse`'s copy -- need to find it without matching on prose.
+    is_theme: bool = False
 
     def diff_summary(self) -> str:
         verb = "edit" if self.edits_existing else "create"
@@ -71,6 +75,14 @@ class Plan:
     #: How to make the application notice, in words.
     reload: str = ""
     warnings: list[str] = field(default_factory=list)
+
+    @property
+    def theme_path(self) -> Path | None:
+        """Where the scheme itself goes, ignoring any config edit."""
+        for step in self.steps:
+            if step.is_theme:
+                return step.path
+        return None
 
     def describe(self) -> str:
         lines = [f"{self.app}:"]
@@ -139,7 +151,7 @@ def _kitty(palette: Palette, name: str) -> Plan:
     return Plan(
         app="kitty",
         steps=[
-            Step(theme, body, "the theme itself"),
+            Step(theme, body, "the theme itself", is_theme=True),
             Step(config, _managed_line(_read(config), f"include themes/{name}.conf"),
                  "include the theme", config.exists()),
         ],
@@ -155,7 +167,7 @@ def _alacritty(palette: Palette, name: str) -> Plan:
     return Plan(
         app="alacritty",
         steps=[
-            Step(theme, body, "the theme itself"),
+            Step(theme, body, "the theme itself", is_theme=True),
             Step(config, _alacritty_import(_read(config), theme),
                  "import the theme", config.exists()),
         ],
@@ -202,7 +214,7 @@ def _foot(palette: Palette, name: str) -> Plan:
     return Plan(
         app="foot",
         steps=[
-            Step(theme, body, "the theme itself"),
+            Step(theme, body, "the theme itself", is_theme=True),
             Step(config, _managed_line(_read(config), f"include={theme}"),
                  "include the theme", config.exists()),
         ],
@@ -218,7 +230,7 @@ def _ghostty(palette: Palette, name: str) -> Plan:
     return Plan(
         app="ghostty",
         steps=[
-            Step(theme, body, "the theme itself"),
+            Step(theme, body, "the theme itself", is_theme=True),
             Step(config, _managed_line(_read(config), f"theme = {name}"),
                  "select the theme", config.exists()),
         ],
@@ -229,7 +241,7 @@ def _ghostty(palette: Palette, name: str) -> Plan:
 def _konsole(palette: Palette, name: str, profile: Path | None = None) -> Plan:
     scheme = _data_home() / f"konsole/{name}.colorscheme"
     body = get_emitter("konsole").emit(palette, None)
-    steps = [Step(scheme, body, "the colour scheme")]
+    steps = [Step(scheme, body, "the colour scheme", is_theme=True)]
     warnings: list[str] = []
 
     if profile is not None:
@@ -302,7 +314,7 @@ def _editor(app: str) -> object:
 
         return Plan(
             app=app,
-            steps=[Step(target, editor.emit(palette), "the theme itself")],
+            steps=[Step(target, editor.emit(palette), "the theme itself", is_theme=True)],
             reload=_RELOAD[app].format(name=name),
         )
 
@@ -347,7 +359,8 @@ def _vscode_extension(palette: Palette, name: str, app: str) -> Plan:
         steps=[
             Step(root / "package.json", json.dumps(manifest, indent=2) + "\n",
                  "the extension manifest"),
-            Step(root / "themes" / f"{name}-color-theme.json", body, "the theme itself"),
+            Step(root / "themes" / f"{name}-color-theme.json", body,
+                 "the theme itself", is_theme=True),
         ],
         reload=f"restart {app}, then pick “{palette.name or name}” in the theme picker",
     )

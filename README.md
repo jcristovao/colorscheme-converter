@@ -183,7 +183,11 @@ painted with the base16 roles the editor writers assign, so it shows the
 mapping rather than any editor's own rendering.
 
 **Copying never touches a live config.** It writes a new file and tells you
-where it went. Anything written to the default destination
+where it went — into the directory that application reads themes from
+(`~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim), since
+a theme written where the program never looks does nothing at all. Type to
+narrow the seventeen targets. Only the theme is written; pointing the
+application at it is what `A` does. Anything written to the default destination
 (`~/.config/cscx/themes`) shows up in the list on the next rescan, because that
 directory is one of the searched locations. `A` does change configuration —
 see below — and shows you the plan first.

@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-08-31" "cscx 0.13.0" "User Commands"
+.TH CSCX 1 "2026-08-31" "cscx 0.13.1" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -542,10 +542,29 @@ Activate the highlighted scheme for an application. The plan is shown before
 anything happens; Enter applies it, Escape cancels.
 .TP
 .B c
-Copy the highlighted scheme to another format. Pick a target, confirm the
-destination, and it is written. Editing the destination keeps it: changing the
-target afterwards re\-suggests a filename only while the field still holds the
-previous suggestion.
+Copy the highlighted scheme to another format. Type to narrow the targets, and
+.B up
+and
+.B down
+choose among them.
+.PP
+The destination proposed is the directory that application reads themes from
+\(em
+.I ~/.claude/themes
+for Claude Code,
+.I ~/.config/nvim/colors
+for neovim, and so on \(em since a theme written where the program never
+looks does nothing at all. Only the theme is written; pointing the application
+at it is what
+.B A
+does. Applications with no conventional location fall back to
+.IR ~/.config/cscx/themes ,
+which
+.B browse
+itself scans.
+.PP
+Editing the destination keeps it: changing the target afterwards re\-suggests
+a filename only while the field still holds the previous suggestion.
 .TP
 .B r
 Rescan. Anything written to

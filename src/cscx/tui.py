@@ -26,6 +26,7 @@ from textual.widgets.option_list import Option
 from . import __version__, live
 from .active import detect as detect_active
 from .activation import ACTIVATABLE, ActivationError, apply_plan, plan
+from .fuzzy import rank
 from .discovery import (
     Discovered,
     SearchLocation,
@@ -68,6 +69,7 @@ HELP: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
     )),
     ("Doing", (
         ("c", "copy the scheme to another format, into a file"),
+        ("", "type to narrow the targets; it defaults to where that app looks"),
         ("a", "apply it to this terminal now (nothing is written)"),
         ("u", "undo that; quitting undoes it too"),
         ("A", "activate it for an application, editing its config"),
@@ -111,15 +113,44 @@ def _targets() -> list[Target]:
     return targets
 
 
+def destination_for(palette: Palette, target: Target, scheme_name: str) -> Path:
+    """Where a copy of `palette` should go for `target`.
+
+    The directory the application actually reads themes from, not a scratch
+    directory of our own: a theme written somewhere the program never looks is
+    a theme that silently does nothing. Applications cscx cannot place a theme
+    for -- iTerm2, wezterm, Windows Terminal, X resources have no single
+    conventional location -- fall back to `~/.config/cscx/themes`, which is one
+    of the directories `browse` itself scans.
+
+    Copying still writes only the theme. Pointing the application at it is what
+    `activate` does.
+    """
+    stem = _slugify(scheme_name)
+    try:
+        if (path := plan(palette, target.name, name=stem).theme_path) is not None:
+            return path
+    except (ActivationError, KeyError):
+        pass
+    return DEFAULT_OUTPUT.expanduser() / target.filename.format(name=stem)
+
+
 class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
     """Pick a target format and confirm where the file goes."""
 
-    BINDINGS = [Binding("escape", "dismiss_screen", "Cancel")]
+    BINDINGS = [
+        Binding("escape", "dismiss_screen", "Cancel"),
+        # The filter holds focus, so the list is driven from here.
+        Binding("down", "move(1)", "Next", show=False),
+        Binding("up", "move(-1)", "Previous", show=False),
+    ]
 
-    def __init__(self, scheme_name: str) -> None:
+    def __init__(self, palette: Palette, scheme_name: str) -> None:
         super().__init__()
+        self._palette = palette
         self._scheme_name = scheme_name
         self._targets = _targets()
+        self._shown: list[Target] = list(self._targets)
         #: The last path this screen filled in itself. Used to tell an
         #: untouched suggestion from one the user has edited.
         self._suggested = ""
@@ -127,16 +158,30 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
     def compose(self) -> ComposeResult:
         with Vertical(id="copy-dialog"):
             yield Label(f"Copy “{self._scheme_name}” to:", id="copy-title")
-            yield OptionList(
-                *(Option(t.label, id=t.name) for t in self._targets), id="copy-targets"
+            yield Input(
+                placeholder=f"type to narrow {len(self._targets)} targets…",
+                id="copy-filter",
             )
+            yield OptionList(id="copy-targets")
             yield Label("Destination", classes="dim")
             yield Input(id="copy-path")
-            yield Label("enter writes it · esc cancels", classes="dim")
+            yield Label("up/down choose · enter writes it · esc cancels",
+                        classes="dim")
 
     def on_mount(self) -> None:
-        self.query_one("#copy-targets", OptionList).focus()
-        self._sync_path(self._targets[0])
+        self._refill("")
+        # Focus the filter, not the list: a short terminal cannot show all
+        # seventeen targets, and typing two letters beats scrolling for one
+        # that happens to be off-screen.
+        self.query_one("#copy-filter", Input).focus()
+
+    def _refill(self, needle: str) -> None:
+        self._shown = rank(needle.strip(), self._targets, key=lambda t: t.label)
+        options = self.query_one("#copy-targets", OptionList)
+        options.clear_options()
+        options.add_options([Option(t.label, id=t.name) for t in self._shown])
+        if self._shown:
+            options.highlighted = 0
 
     def _sync_path(self, target: Target) -> None:
         """Suggest a path for `target`, without discarding a typed one.
@@ -148,20 +193,42 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
         field = self.query_one("#copy-path", Input)
         if field.value and field.value != self._suggested:
             return
-        stem = _slugify(self._scheme_name)
-        self._suggested = str(
-            DEFAULT_OUTPUT.expanduser() / target.filename.format(name=stem)
-        )
+        self._suggested = str(destination_for(self._palette, target, self._scheme_name))
         field.value = self._suggested
+
+    @on(Input.Changed, "#copy-filter")
+    def _filter_changed(self, event: Input.Changed) -> None:
+        self._refill(event.value)
 
     @on(OptionList.OptionHighlighted, "#copy-targets")
     def _highlight(self, event: OptionList.OptionHighlighted) -> None:
-        self._sync_path(self._targets[event.option_index])
+        if self._shown:
+            self._sync_path(self._shown[event.option_index])
 
     @on(OptionList.OptionSelected, "#copy-targets")
     def _select(self, event: OptionList.OptionSelected) -> None:
-        target = self._targets[event.option_index]
+        self._confirm(self._shown[event.option_index])
+
+    @on(Input.Submitted)
+    def _submitted(self) -> None:
+        if (target := self.highlighted()) is not None:
+            self._confirm(target)
+
+    def highlighted(self) -> Target | None:
+        index = self.query_one("#copy-targets", OptionList).highlighted
+        if index is None or not self._shown:
+            return None
+        return self._shown[index]
+
+    def _confirm(self, target: Target) -> None:
         self.dismiss((target, Path(self.query_one("#copy-path", Input).value)))
+
+    def action_move(self, delta: int) -> None:
+        options = self.query_one("#copy-targets", OptionList)
+        if not self._shown:
+            return
+        current = options.highlighted or 0
+        options.highlighted = max(0, min(len(self._shown) - 1, current + delta))
 
     def action_dismiss_screen(self) -> None:
         self.dismiss(None)
@@ -260,15 +327,17 @@ class BrowseApp(App[None]):
     #status { height: 1; color: $text-muted; padding: 0 1; }
     .dim { color: $text-muted; }
     #copy-dialog {
-        width: 64; height: auto; padding: 1 2;
+        width: 70; height: 90%; padding: 1 2;
         background: $surface; border: thick $primary;
     }
-    #copy-targets { height: 12; }
+    /* 1fr, not a fixed height: seventeen targets in a twelve-row box hid a
+       third of them with nothing to say so. */
+    #copy-targets { height: 1fr; }
     #activate-dialog {
-        width: 88; height: auto; padding: 1 2;
+        width: 88; max-height: 90%; padding: 1 2;
         background: $surface; border: thick $warning;
     }
-    #activate-apps { height: 10; }
+    #activate-apps { height: 14; }
     #activate-plan { height: auto; padding: 1 0 0 0; color: $text-muted; }
     #help-dialog {
         width: 74; max-height: 90%; padding: 1 2;
@@ -508,14 +577,18 @@ class BrowseApp(App[None]):
     def action_copy_to(self) -> None:
         if not (found := self.current()):
             return
+        try:
+            palette = self._palette(found.path)
+        except Exception as exc:
+            self.notify(str(exc), title="could not read", severity="error")
+            return
+
         # Name the file after the scheme's own name where it has one -- konsole
         # records a Description, for instance -- so the filename and the name
         # written inside the file agree.
-        try:
-            name = self._palette(found.path).name or found.name
-        except Exception:
-            name = found.name
-        self.push_screen(CopyToScreen(name), self._write_copy)
+        self.push_screen(
+            CopyToScreen(palette, palette.name or found.name), self._write_copy
+        )
 
     def action_live_apply(self) -> None:
         """Recolour the real terminal, so the scheme can be judged in use."""
