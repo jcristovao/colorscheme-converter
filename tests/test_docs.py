@@ -164,8 +164,9 @@ def _prose_paragraphs(page: Path) -> list[list[str]]:
         if line.lstrip().startswith("```"):
             in_fence = not in_fence
             line = ""
+        # headings, tables, list items, indented continuations, raw HTML
         structural = in_fence or not line.strip() or re.match(
-            r"^(#{1,6}\s|\||\s*([-*+]|\d+\.)\s|\s+\S)", line
+            r"^(#{1,6}\s|\||<|\s*([-*+]|\d+\.)\s|\s+\S)", line
         )
         if structural:
             if current:

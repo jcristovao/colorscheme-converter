@@ -81,6 +81,14 @@ Every user-facing change lands in three places, and the test suite checks all th
 - **`README.md`** — the entry point. Keep it short; link out.
 - **`docs/*.md`** — the detail, one page per subject.
 
+The screenshots in `docs/img/` are generated, not captured by hand:
+
+```console
+$ python3 tools/screenshots.py
+```
+
+The browser ones come out of Textual's own `export_screenshot`, the rest are real ANSI output re-rendered by Rich, and both run against a sandboxed `HOME` holding a demo corpus — so no picture carries the path or the username of whoever generated it. Regenerate them when you change the layout of something they show.
+
 Markdown prose is **not hard-wrapped**: one line per paragraph, and let the renderer reflow it. Wrapping at 80 columns is a habit from the man page, where it is required, and carrying it into Markdown means a two-word edit re-flows the paragraph and shows up as a six-line diff. A test enforces this.
 
 `contrast_target` defaults to `None` in every writer so that a configured [mapping](mapping.md) is not shadowed by a module-level constant; pass values down rather than defaulting them twice.

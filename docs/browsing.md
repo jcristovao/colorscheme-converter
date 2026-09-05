@@ -9,6 +9,8 @@ $ pip install 'cscx[tui]'      # Textual; every other command needs nothing
 $ cscx browse
 ```
 
+![The browser: schemes on the left, a live preview on the right](img/browse.svg)
+
 ## Keys
 
 ```
@@ -52,9 +54,13 @@ The syntax sample is painted with the [base16 roles](editors.md#how-the-mapping-
 
 `cscx preview FILE` prints the same panels without the browser.
 
+![cscx preview, printing the same panels to the terminal](img/preview.svg)
+
 ## Copying a scheme
 
 `c` in the browser writes the highlighted scheme out in another format.
+
+![The copy dialog, with its seventeen targets and the destination for each](img/browse-copy.svg)
 
 **Copying never touches a live config.** It writes a new file and tells you where it went — into the directory that application reads themes from (`~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim), since a theme written where the program never looks does nothing at all. Type to narrow the seventeen targets.
 

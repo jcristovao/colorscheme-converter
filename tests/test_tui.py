@@ -342,8 +342,13 @@ async def test_schemes_in_use_are_marked(monkeypatch):
         assert app.in_use == {target: ["kitty"]}
 
         index = next(i for i, found in enumerate(app._shown) if found.path == target)
-        row = app.query_one("#schemes").get_option_at_index(index).prompt
-        assert "in use by kitty" in row.plain
+        options = app.query_one("#schemes")
+        assert options.get_option_at_index(index).prompt.plain.endswith("●")
+
+        # The prose lives in the status line, which is as wide as the window.
+        options.highlighted = index
+        await pilot.pause()
+        assert "in use by kitty" in str(app.query_one("#status").render())
 
 
 @pytest.mark.asyncio
@@ -742,3 +747,95 @@ async def test_copying_to_claude_code_writes_a_theme_claude_code_would_load(tmp_
     document = json.loads(destination.read_text())
     assert set(document) == {"name", "base", "overrides"}
     assert not set(document["overrides"]) - CLAUDE_CODE_TOKENS
+
+
+@pytest.mark.asyncio
+async def test_the_copy_destination_is_shown_tilde_abbreviated(tmp_path, monkeypatch):
+    """The field is a fixed width; `/home/somebody` is a prefix every row shares."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+        value = app.screen.query_one("#copy-path").value
+
+    assert value.startswith("~/"), value
+    assert str(tmp_path) not in value
+
+
+@pytest.mark.asyncio
+async def test_a_typed_tilde_is_expanded_not_taken_literally(tmp_path, monkeypatch):
+    """`~/themes/x.conf` used to become a directory called `~` in the cwd."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("c")
+        await pilot.pause()
+
+        screen = app.screen
+        screen.query_one("#copy-path").value = "~/themes/typed.conf"
+        result = None
+
+        def capture(value):
+            nonlocal result
+            result = value
+
+        screen.dismiss = capture           # type: ignore[method-assign]
+        screen._confirm(screen.highlighted())
+
+    assert result is not None
+    _target, destination = result
+    assert destination == tmp_path / "themes/typed.conf"
+    assert "~" not in str(destination)
+
+
+@pytest.mark.asyncio
+async def test_a_long_name_is_cut_to_the_sidebar_rather_than_wrapping(tmp_path):
+    """A wrapped row makes the list unreadable, and base16 names are long.
+
+    Textual's OptionList wraps its options and ignores `no_wrap` on a Rich
+    Text, so the row has to be cut to length when it is built.
+    """
+    source = (FIXTURES / "gruvbox.kitty.conf").read_text()
+    (tmp_path / "base16-atelier-sulphurpool-light.conf").write_text(source)
+    (tmp_path / "x.conf").write_text(source)
+    locations = [SearchLocation("t", tmp_path, ("*.conf",), "kitty")]
+
+    # Narrow enough that the source label has to go, wide enough that it fits.
+    for width in (70, 124, 200):
+        app = BrowseApp(locations=locations)
+        async with app.run_test(size=(width, 30)) as pilot:
+            await pilot.pause()
+            options = app.query_one("#schemes")
+            available = options.content_size.width
+            rows = [options.get_option_at_index(i).prompt.plain
+                    for i in range(options.option_count)]
+
+        assert len(rows) == 2
+        for row in rows:
+            assert len(row) <= available, (width, repr(row))
+        assert any("…" in row for row in rows), (width, rows)
+
+
+@pytest.mark.asyncio
+async def test_rows_are_rebuilt_when_the_window_changes_width(tmp_path):
+    """Cut once at the wrong width, they stay cut at the wrong width."""
+    source = (FIXTURES / "gruvbox.kitty.conf").read_text()
+    (tmp_path / "base16-atelier-sulphurpool-light.conf").write_text(source)
+    locations = [SearchLocation("t", tmp_path, ("*.conf",), "kitty")]
+
+    app = BrowseApp(locations=locations)
+    async with app.run_test(size=(70, 30)) as pilot:
+        await pilot.pause()
+        options = app.query_one("#schemes")
+        narrow = options.get_option_at_index(0).prompt.plain
+
+        await pilot.resize_terminal(200, 30)
+        await pilot.pause()
+        await pilot.pause()
+        wide = options.get_option_at_index(0).prompt.plain
+
+    assert len(wide) > len(narrow)
+    assert "sulphurpool" in wide and "sulphurpool" not in narrow

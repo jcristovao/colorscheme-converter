@@ -20,6 +20,7 @@ from .fuzzy import score
 
 __all__ = [
     "Discovered",
+    "tilde",
     "SearchLocation",
     "search_locations",
     "discover",
@@ -33,6 +34,22 @@ MIN_CONFIDENCE = 0.4
 
 #: Nothing this large is a color scheme; skip it without reading.
 MAX_SIZE = 1 << 20
+
+
+def tilde(path: Path | str) -> str:
+    """`path` with the home directory written as `~`.
+
+    Cosmetic, but the places it is shown -- the browser's status line, the
+    copy dialog's destination field -- are bounded by the terminal width, and
+    `/home/somebody` is a prefix every single entry shares. Anything reading a
+    value back must call `expanduser`, which is what the shell would have done.
+    """
+    home, text = str(Path.home()), str(path)
+    if text == home:
+        return "~"
+    if text.startswith(home + "/"):
+        return "~" + text[len(home):]
+    return text
 
 
 def _config_home() -> Path:
@@ -139,6 +156,11 @@ class Discovered:
         """A readable name: the filename without its extension."""
         stem = self.path.stem if self.path.suffix else self.path.name
         return stem.replace("_", " ").replace("-", " ").strip() or self.path.name
+
+    @property
+    def display_path(self) -> str:
+        """The path, with the home directory written as `~`."""
+        return tilde(self.path)
 
     @property
     def key(self) -> str:

@@ -15,10 +15,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Header, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
@@ -33,6 +34,7 @@ from .discovery import (
     discover,
     filter_schemes,
     installed_applications,
+    tilde,
 )
 from .editors import EDITORS, EditorPaletteError, get_editor
 from .emitters import EMITTERS, get_emitter
@@ -193,7 +195,7 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
         field = self.query_one("#copy-path", Input)
         if field.value and field.value != self._suggested:
             return
-        self._suggested = str(destination_for(self._palette, target, self._scheme_name))
+        self._suggested = tilde(destination_for(self._palette, target, self._scheme_name))
         field.value = self._suggested
 
     @on(Input.Changed, "#copy-filter")
@@ -221,7 +223,11 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
         return self._shown[index]
 
     def _confirm(self, target: Target) -> None:
-        self.dismiss((target, Path(self.query_one("#copy-path", Input).value)))
+        # expanduser, because the field is shown tilde-abbreviated and because
+        # a `~/...` typed by hand would otherwise become a literal directory
+        # named `~` in the working directory.
+        typed = self.query_one("#copy-path", Input).value
+        self.dismiss((target, Path(typed).expanduser()))
 
     def action_move(self, delta: int) -> None:
         options = self.query_one("#copy-targets", OptionList)
@@ -300,18 +306,52 @@ class HelpScreen(ModalScreen[None]):
             for section, rows in HELP:
                 yield Label(section, classes="help-section")
                 for keys, description in rows:
-                    yield Label(self._row(keys, description), classes="help-row")
+                    # Two columns rather than one padded string: a description
+                    # long enough to wrap has to wrap under itself, not back
+                    # to the left margin where the keys are.
+                    with Horizontal(classes="help-row"):
+                        yield Label(keys, classes="help-keys")
+                        yield Label(description, classes="help-desc"
+                                    + ("" if keys else " continuation"))
             yield Label("any of  esc  ?  F1  q  closes this", classes="dim")
-
-    @staticmethod
-    def _row(keys: str, description: str) -> Text:
-        row = Text()
-        row.append(f"  {keys:<22}", style="bold" if keys else "")
-        row.append(description, style="" if keys else "italic dim")
-        return row
 
     def action_dismiss_screen(self) -> None:
         self.dismiss(None)
+
+
+#: Fallback width for a row, used only before the first layout has happened.
+#: The real width is measured off the list: rows have to be cut to length by
+#: hand, because Textual's OptionList wraps its options and ignores the
+#: `no_wrap` on a Rich Text, and a wrapped row makes the list unreadable.
+SIDEBAR_WIDTH = 42
+#: Everything in a row that is neither the name nor the source: sixteen
+#: swatches, the space after them, and the in-use marker.
+_ROW_FURNITURE = 16 + 1 + 3
+#: The gap between name and source, and the shortest name worth showing. Below
+#: that the source is dropped rather than the name cut to nothing.
+_SOURCE_GAP = 2
+_MIN_NAME = 8
+
+
+class SchemeList(OptionList):
+    """The scheme list, which reports its own width.
+
+    Rows have to be cut to length when they are built, so something has to
+    rebuild them when that length moves. The App's own `Resize` is no good for
+    it: that arrives before the children have been laid out, so the width read
+    there is still the previous one. A widget's own `Resize`, by contrast,
+    carries the size it has just been given.
+    """
+
+    class WidthChanged(Message):
+        def __init__(self, width: int) -> None:
+            super().__init__()
+            self.width = width
+
+    def on_resize(self, event: events.Resize) -> None:
+        # content_size, not the event's size: the event carries the outside of
+        # the widget, and the border and scrollbar come out of it.
+        self.post_message(self.WidthChanged(self.content_size.width))
 
 
 class BrowseApp(App[None]):
@@ -320,7 +360,10 @@ class BrowseApp(App[None]):
     CSS = """
     Screen { layout: vertical; }
     #body { height: 1fr; }
-    #sidebar { width: 42; border-right: solid $panel; }
+    #sidebar {
+        width: 40%; min-width: 34; max-width: 56;
+        border-right: solid $panel;
+    }
     #filter { border: none; }
     #schemes { height: 1fr; }
     #preview-pane { padding: 0 1; }
@@ -345,6 +388,12 @@ class BrowseApp(App[None]):
     }
     #help-title { text-style: bold; padding-bottom: 1; }
     .help-section { color: $accent; text-style: bold; padding-top: 1; }
+    /* A Label sizes to its content and is then clipped by the dialog, so the
+       description takes the remaining width and wraps inside it. */
+    .help-row { height: auto; width: 1fr; }
+    .help-keys { width: 24; padding-left: 2; text-style: bold; }
+    .help-desc { width: 1fr; }
+    .help-desc.continuation { color: $text-muted; text-style: italic; }
     """
 
     BINDINGS = [
@@ -395,6 +444,9 @@ class BrowseApp(App[None]):
         self.live_scheme: str | None = None
         #: Applications activated this session, for tests and for the log.
         self.activated: list[str] = []
+        #: The name width the current rows were cut to, so a resize can tell
+        #: whether they need rebuilding.
+        self._budget = 0
         #: Resolved path -> the applications currently using it.
         self.in_use: dict[Path, list[str]] = {}
 
@@ -403,7 +455,7 @@ class BrowseApp(App[None]):
         with Horizontal(id="body"):
             with Vertical(id="sidebar"):
                 yield Input(placeholder="filter — try  gruv  or  source:neovim", id="filter")
-                yield OptionList(id="schemes")
+                yield SchemeList(id="schemes")
             with VerticalScroll(id="preview-pane"):
                 yield Static("", id="preview")
         yield Static("", id="status")
@@ -417,6 +469,9 @@ class BrowseApp(App[None]):
         # The list takes focus, not the filter: single-key bindings like `c`
         # and `j` would otherwise be typed into the filter field instead.
         self.query_one("#schemes", OptionList).focus()
+        # Rows are cut to the width of the list, which is not known until the
+        # layout has been through a refresh. The first build always guesses.
+        self.call_after_refresh(self._resync_rows)
 
     # -- data ------------------------------------------------------------
 
@@ -456,19 +511,60 @@ class BrowseApp(App[None]):
             self._set_preview(Text("no scheme matches that filter"))
 
     def _row(self, found: Discovered) -> Text:
-        """A list row: sixteen swatches, then the name and format."""
+        """A list row: sixteen swatches, then the name and the source.
+
+        Cut to the width of the list by hand. Textual's OptionList wraps its
+        options and ignores the `no_wrap` on a Rich Text, and a row that wraps
+        pushes its own source label onto the next line, at which point the
+        list stops reading as a list at all.
+        """
         try:
             row = Text.from_ansi(swatch_strip(self._palette(found.path), width=1))
         except Exception:
             # One unreadable file must cost one row, not the whole list.
             row = Text(" " * 16, style="dim")
-        row.append(f" {found.name}", style="bold")
+
+        # What is left for the name and the source, once the swatches, the
+        # space after them and the in-use marker have taken their share.
+        body = self._list_width() - _ROW_FURNITURE
+
         # The source, not the format: neovim schemes are cached as kitty
-        # files, and labelling them "kitty" here would be misleading.
-        row.append(f"  {found.source}", style="dim")
-        if users := self.in_use.get(found.path):
-            row.append(f"  ● in use by {', '.join(users)}", style="bold green")
+        # files, and labelling them "kitty" here would be misleading. In a
+        # narrow window it is the first thing to go -- the name is why anyone
+        # is reading the list, and `/` can filter on source anyway.
+        source = found.source
+        if body - len(source) - _SOURCE_GAP < _MIN_NAME:
+            source = ""
+
+        room = max(1, body - (len(source) + _SOURCE_GAP if source else 0))
+        name = found.name
+        if len(name) > room:
+            name = name[:max(1, room - 1)] + "…"
+
+        row.append(f" {name}", style="bold")
+        row.append(f"{' ' * max(0, body - len(name) - len(source))}{source}",
+                   style="dim")
+        # A bare dot, because a row has no space for prose. Which application
+        # it is, the status line says -- that one is as wide as the window.
+        row.append("  ●" if found.path in self.in_use else "   ",
+                   style="bold green")
         return row
+
+    def _list_width(self) -> int:
+        """How many columns a row may occupy.
+
+        Measured off the list rather than computed from `SIDEBAR_WIDTH`: that
+        is the outside of the panel, and borders, padding and the scrollbar
+        all come out of it. One column is held back for the scrollbar that
+        appears once the list overflows, which it usually does.
+        """
+        if self._budget > 0:
+            return self._budget
+        try:
+            width = self.query_one("#schemes", OptionList).content_size.width - 1
+        except Exception:                    # queried before the first layout
+            width = 0
+        return width if width > 0 else SIDEBAR_WIDTH - 5
 
     def _palette(self, path: Path) -> Palette:
         if path not in self._cache:
@@ -489,7 +585,9 @@ class BrowseApp(App[None]):
             return
         self._set_preview(Text.from_ansi(render(palette)))
         self.query_one("#status", Static).update(
-            f"{found.path}  ·  {found.format} {found.confidence:.2f}  ·  {found.origin}"
+            f"{found.display_path}  ·  {found.format} {found.confidence:.2f}  ·  {found.origin}"
+            + (f"  ·  ● in use by {', '.join(users)}"
+               if (users := self.in_use.get(found.path)) else "")
             + (f"  ·  {len(self._shown)}/{len(self._all)} shown"
                if len(self._shown) != len(self._all) else "")
         )
@@ -503,6 +601,29 @@ class BrowseApp(App[None]):
     @on(Input.Changed, "#filter")
     def _filter_changed(self, event: Input.Changed) -> None:
         self._apply_filter(event.value)
+
+    @on(SchemeList.WidthChanged)
+    def _list_resized(self, event: SchemeList.WidthChanged) -> None:
+        self._resync_rows(event.width - 1)
+
+    def _resync_rows(self, width: int | None = None) -> None:
+        """Rebuild the rows when the width they were cut to has changed.
+
+        Rows are cut to length when they are built, so they have to be rebuilt
+        when that length moves -- including the first time, since the initial
+        build happens before there is any layout to measure.
+        """
+        if width is None:
+            width = self._list_width()
+        if width == self._budget:
+            return
+        self._budget = width
+
+        options = self.query_one("#schemes", OptionList)
+        keep = options.highlighted
+        self._apply_filter(self.query_one("#filter", Input).value)
+        if keep is not None and keep < options.option_count:
+            options.highlighted = keep
 
     @on(Input.Submitted, "#filter")
     def _filter_submitted(self) -> None:

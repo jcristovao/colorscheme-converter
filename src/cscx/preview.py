@@ -124,10 +124,15 @@ def _terminal_sample(palette: Palette, width: int) -> list[str]:
         body = "".join(parts)
         # Pad within the background so the panel reads as a terminal window.
         visible = _visible_length(body)
-        return f"{_bg(bg)}{body}{' ' * max(0, width - visible)}{RESET}"
+        # The background is re-stated before the padding: every painted run
+        # inside `body` ends with a reset, so the trailing spaces would
+        # otherwise fall outside the panel and leave a ragged right edge.
+        return f"{_bg(bg)}{body}{_bg(bg)}{' ' * max(0, width - visible)}{RESET}"
 
-    prompt = (_paint("joao", fg=slot[10] or fg, bold=True)
-              + _paint("@", fg=fg) + _paint("arch", fg=slot[12] or fg, bold=True)
+    # A stand-in name rather than the real one: the sample is a picture of a
+    # shell, and it also ends up in the screenshots under docs/img.
+    prompt = (_paint("you", fg=slot[10] or fg, bold=True)
+              + _paint("@", fg=fg) + _paint("host", fg=slot[12] or fg, bold=True)
               + _paint(" ~/code ", fg=slot[11] or fg) + _paint("$ ", fg=fg))
 
     return [
@@ -183,7 +188,8 @@ def _code_sample(roles: Roles, width: int) -> list[str]:
             for text, role in run
         )
         visible = _visible_length(body) + 2      # the two-space indent
-        lines.append(f"{_bg(background)}  {body}{' ' * max(0, width - visible)}{RESET}")
+        lines.append(f"{_bg(background)}  {body}{_bg(background)}"
+                     f"{' ' * max(0, width - visible)}{RESET}")
     return lines
 
 

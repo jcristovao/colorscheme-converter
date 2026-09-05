@@ -458,7 +458,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
         print("cscx: no schemes found", file=sys.stderr)
         return 1
     for entry in found:
-        print(f"{entry.source:12} {entry.name:34} {entry.path}")
+        print(f"{entry.source:12} {entry.name:34} {entry.display_path}")
     print(f"\n{len(found)} schemes", file=sys.stderr)
     return 0
 

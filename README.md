@@ -12,6 +12,8 @@ $ cscx convert kitty.conf --to all -o ./out            # every format at once
 
 Existing tools go one way only: base16 and themer generate from a palette you author in *their* format, pywal generates from a wallpaper, colortty converts *to* alacritty. None of them read the scheme you already have.
 
+![The cscx browser: a list of schemes on the left, a live preview on the right](docs/img/browse.svg)
+
 ## Install
 
 Not on PyPI yet, so install from a clone:
@@ -29,14 +31,44 @@ Python 3.11+. `pip install .` works the same way if you would rather it went int
 
 Installing also puts `man cscx` in place.
 
-## Try it
+## The browser
 
-```console
-$ cscx list                  # every scheme already on this machine
-$ cscx browse                # pick one, see it, press `a` to try it live
-```
+That picture is `cscx browse`, and it is the fastest way to use any of this. It finds the schemes already on your machine — you do not have to know where they live — shows you what each one actually looks like, and gives you one key each for the three things you want to do with one:
 
-`browse` is the fastest way in: the schemes you have on the left, a live preview on the right, and single keys to try one in this terminal (`a`), copy it to another format (`c`) or install it for an application (`A`).
+| | |
+|---|---|
+| `a` | **try it right now.** Recolours this terminal instantly. `u` puts it back, and so does quitting. |
+| `c` | **copy it** to another format or editor, into the directory that application really reads themes from |
+| `A` | **install it** for an application, so it survives a restart — after showing you the plan |
+
+Plus `/` to filter (fuzzily — `b16sulph` finds `base16-atelier-sulphurpool`), `j`/`k` or the arrows to move, and `?` for the keys.
+
+<details>
+<summary>Copying a scheme to another format (<code>c</code>)</summary>
+
+![The copy dialog: seventeen targets, and the destination each one writes to](docs/img/browse-copy.svg)
+
+Type to narrow the seventeen targets. The destination is filled in for you and points at the directory that application reads themes from — `~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim — because a theme written where the program never looks does nothing at all.
+
+</details>
+
+### It is optional, and it is not the only way in
+
+`browse` is the one part of cscx with a dependency, which is why it is an [extra](#install) rather than a requirement. Everything it does has a plain command behind it, and those need nothing but Python:
+
+| in the browser | on the command line |
+|---|---|
+| the list | `cscx list`, `cscx list gruv dark` |
+| the preview pane | `cscx preview FILE` |
+| `a` — try it now | `cscx live FILE`, `cscx live --reset` |
+| `c` — copy to another format | `cscx convert FILE --to ghostty -o …` |
+| `A` — install it | `cscx activate FILE --for kitty` |
+
+So a machine where you would rather not install Textual loses the browsing, not the converting.
+
+![cscx preview: the same panels, without the browser](docs/img/preview.svg)
+
+→ [the browser in detail](docs/browsing.md)
 
 ## Supported formats
 

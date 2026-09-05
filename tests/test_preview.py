@@ -86,3 +86,21 @@ def test_terminal_sample_survives_a_palette_with_no_selection():
     palette = parse_file(FIXTURES / "gruvbox.colorscheme")
     assert palette.selection_background is None
     assert "selected text" in ANSI.sub("", render(palette))
+
+
+def test_the_panels_have_a_straight_right_edge():
+    """Padding must be painted inside the panel, not after it.
+
+    Every painted run ends with a reset, so a line built as
+    `background + body + padding + reset` leaves its trailing spaces
+    unstyled -- and the panel frays on any terminal whose own background
+    differs from the scheme's, which is the whole point of previewing it.
+    """
+    import re
+
+    from cscx import parse_file
+    from cscx.preview import render
+
+    output = render(parse_file(FIXTURES / "gruvbox.kitty.conf"))
+    for line in output.split("\n"):
+        assert not re.search(r"\x1b\[0m +\x1b\[0m$", line), repr(line)
