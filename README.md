@@ -1,12 +1,8 @@
 # cscx
 
-Convert terminal color schemes between formats — and into editor themes —
-through one canonical palette.
+Easily convert your favorite colour scheme to all your terminals, editors and command line tools / TUIs.
 
-You already have the scheme you want. It's in kitty's config, or a konsole
-`.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it
-and writes it out anywhere else: nine terminal formats, eight editors, in any
-direction.
+You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats, eight editors, in any direction.
 
 ```console
 $ cscx browse                                          # find, preview, apply
@@ -14,20 +10,24 @@ $ cscx convert Gruvbox.colorscheme --to kitty          # one file, another forma
 $ cscx convert kitty.conf --to all -o ./out            # every format at once
 ```
 
-Existing tools go one way only: base16 and themer generate from a palette you
-author in *their* format, pywal generates from a wallpaper, colortty converts
-*to* alacritty. None of them read the scheme you already have.
+Existing tools go one way only: base16 and themer generate from a palette you author in *their* format, pywal generates from a wallpaper, colortty converts *to* alacritty. None of them read the scheme you already have.
 
 ## Install
 
+Not on PyPI yet, so install from a clone:
+
 ```console
-$ pipx install '.[tui]'        # from a clone; --editable to track your changes
-$ pip install '.[tui]'         # or into the current environment
+$ git clone <this repository> cscx && cd cscx
+
+$ pipx install .               # the converter — no dependencies at all
+$ pipx install '.[tui]'        # …and `cscx browse` too (pulls in Textual)
 ```
 
-Python 3.11+. The converter itself has **no dependencies** — the `[tui]` extra
-is only for `cscx browse`, and `pipx install .` without it gives you every
-other command. Installing also puts `man cscx` in place.
+Python 3.11+. `pip install .` works the same way if you would rather it went into the current environment, and `pipx install --editable '.[tui]'` tracks your changes to the clone.
+
+`[tui]` is an *extra*, not a package: it names the optional dependency group in `pyproject.toml`, which contains Textual and nothing else. `cscx browse` is the only command that needs it — every other one runs on the standard library. The quotes are for the shell, which would otherwise try to glob `[tui]`.
+
+Installing also puts `man cscx` in place.
 
 ## Try it
 
@@ -36,9 +36,7 @@ $ cscx list                  # every scheme already on this machine
 $ cscx browse                # pick one, see it, press `a` to try it live
 ```
 
-`browse` is the fastest way in: the schemes you have on the left, a live
-preview on the right, and single keys to try one in this terminal (`a`), copy
-it to another format (`c`) or install it for an application (`A`).
+`browse` is the fastest way in: the schemes you have on the left, a live preview on the right, and single keys to try one in this terminal (`a`), copy it to another format (`c`) or install it for an application (`A`).
 
 ## Supported formats
 
@@ -56,9 +54,7 @@ All nine are both read and written.
 | `windows-terminal` | `.json` | bare scheme, array, or nested in `settings.json` |
 | `xresources` | `.Xresources` | `*color0:`, urxvt/xterm prefixes, `rgb:` values |
 
-The 16 ANSI slots plus foreground and background survive every conversion; the
-trim around them (cursor, selection, dim, indexed) depends on the target.
-→ [what survives a conversion](docs/formats.md#what-survives-a-conversion)
+The 16 ANSI slots plus foreground and background survive every conversion; the trim around them (cursor, selection, dim, indexed) depends on the target. → [what survives a conversion](docs/formats.md#what-survives-a-conversion)
 
 ## Editors
 
@@ -79,9 +75,7 @@ The same palette also produces a full editor theme.
 $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
 ```
 
-Editors are written, not read — with one exception: neovim colorschemes can be
-read *back* into palettes, so a theme you love in your editor can become your
-terminal's. → [editor themes](docs/editors.md)
+Editors are written, not read — with one exception: neovim colorschemes can be read *back* into palettes, so a theme you love in your editor can become your terminal's. → [editor themes](docs/editors.md)
 
 ## Commands
 
@@ -104,23 +98,11 @@ Every command takes `--help`, and `man cscx` is the full reference.
 
 ## Three things worth knowing
 
-**Nothing is invented.** By default `cscx` emits only what it actually read.
-Converting from konsole, which has no cursor color, produces a kitty config
-with no `cursor` line — the terminal applies its own default. `--fill` derives
-the missing values from long-standing conventions and marks each one, so a
-derived value is never mistaken for a stated one.
-→ [gap filling](docs/formats.md#gap-filling)
+**Nothing is invented.** By default `cscx` emits only what it actually read. Converting from konsole, which has no cursor color, produces a kitty config with no `cursor` line — the terminal applies its own default. `--fill` derives the missing values from long-standing conventions and marks each one, so a derived value is never mistaken for a stated one. → [gap filling](docs/formats.md#gap-filling)
 
-**Only `activate` changes your configuration.** `convert` and the browser's
-copy write new files and tell you where they went. `activate` is the one
-command that edits a file you didn't ask it to create, and it plans, backs up,
-validates with the real application, and rolls back if that application would
-reject the result. → [applying a scheme](docs/applying.md)
+**Only `activate` changes your configuration.** `convert` and the browser's copy write new files and tell you where they went. `activate` is the one command that edits a file you didn't ask it to create, and it plans, backs up, validates with the real application, and rolls back if that application would reject the result. → [applying a scheme](docs/applying.md)
 
-**The editor mapping is yours to change.** Which ANSI hue means "variable",
-how far the interface shades step, how readable a comment must be — all have
-defaults that need no configuration, and all can be overridden in
-`~/.config/cscx/mapping.toml`. → [tuning the mapping](docs/mapping.md)
+**The editor mapping is yours to change.** Which ANSI hue means "variable", how far the interface shades step, how readable a comment must be — all have defaults that need no configuration, and all can be overridden in `~/.config/cscx/mapping.toml`. → [tuning the mapping](docs/mapping.md)
 
 ## Documentation
 
@@ -130,8 +112,7 @@ $ cscx formats
 $ cscx convert --help
 ```
 
-`docs/cscx.1` is the reference: every command, option, format and editor.
-These pages are the detail behind it:
+`docs/cscx.1` is the reference: every command, option, format and editor. These pages are the detail behind it:
 
 - [Formats](docs/formats.md) — color spellings, what survives a conversion, gap filling
 - [Finding and browsing](docs/browsing.md) — the browser, fuzzy filtering, where schemes are found

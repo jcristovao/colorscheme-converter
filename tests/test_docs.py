@@ -155,3 +155,38 @@ def test_every_guide_is_reachable_from_the_readme():
 def test_the_readme_stays_an_entry_point():
     """It is the front page, not the manual; detail belongs on a linked page."""
     assert len(README_TEXT.splitlines()) < 250
+
+
+def _prose_paragraphs(page: Path) -> list[list[str]]:
+    """Runs of consecutive plain-prose lines, outside code, tables and lists."""
+    paragraphs, current, in_fence = [], [], False
+    for line in page.read_text().split("\n"):
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            line = ""
+        structural = in_fence or not line.strip() or re.match(
+            r"^(#{1,6}\s|\||\s*([-*+]|\d+\.)\s|\s+\S)", line
+        )
+        if structural:
+            if current:
+                paragraphs.append(current)
+                current = []
+        else:
+            current.append(line)
+    if current:
+        paragraphs.append(current)
+    return paragraphs
+
+
+@pytest.mark.parametrize("page", [README, *GUIDES], ids=lambda p: p.name)
+def test_prose_is_not_hard_wrapped(page):
+    """One line per paragraph.
+
+    Hard wrapping at 80 columns is a habit from man pages, and it does not
+    belong here: GitHub reflows the text anyway, and re-wrapping a paragraph
+    after a two-word edit turns a one-word change into a six-line diff.
+    """
+    for paragraph in _prose_paragraphs(page):
+        assert len(paragraph) == 1, (
+            f"{page.name}: hard-wrapped paragraph starting {paragraph[0][:60]!r}"
+        )
