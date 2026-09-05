@@ -19,7 +19,7 @@ Existing tools go one way only: base16 and themer generate from a palette you au
 Not on PyPI yet, so install from a clone:
 
 ```console
-$ git clone <this repository> cscx && cd cscx
+$ git clone https://github.com/jcristovao/colorscheme-converter.git cscx && cd cscx
 
 $ pipx install .               # the converter — no dependencies at all
 $ pipx install '.[tui]'        # …and `cscx browse` too (pulls in Textual)
