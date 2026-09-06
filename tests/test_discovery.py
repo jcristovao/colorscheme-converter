@@ -97,10 +97,11 @@ def test_search_locations_are_well_formed():
 
 
 def test_installed_applications_reports_a_subset_of_what_we_support():
+    from cscx.desktops import DESKTOPS
     from cscx.editors import EDITORS
     from cscx.emitters import EMITTERS
 
-    known = set(EMITTERS) | set(EDITORS)
+    known = set(EMITTERS) | set(EDITORS) | set(DESKTOPS)
     assert installed_applications() <= known
 
 

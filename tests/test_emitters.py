@@ -236,9 +236,17 @@ def test_every_emitter_exposes_the_protocol():
 
 
 def test_emitters_and_parsers_cover_the_same_formats():
-    from cscx.formats import _MODULES as parser_modules
+    """Every terminal format round-trips, and only the read-only ones do not.
 
-    assert {m.NAME for m in parser_modules} == set(EMITTERS)
+    KDE is parsed but never emitted as a *terminal* format -- it is written
+    through `desktops/` instead -- so it is named here rather than allowed to
+    widen the rule by accident.
+    """
+    from cscx.formats import READ_ONLY, _MODULES as parser_modules
+
+    assert {m.NAME for m in parser_modules} - READ_ONLY == set(EMITTERS)
+    assert READ_ONLY <= {m.NAME for m in parser_modules}
+    assert not READ_ONLY & set(EMITTERS)
 
 
 def test_a_hostile_scheme_name_survives_every_terminal_format(tmp_path):

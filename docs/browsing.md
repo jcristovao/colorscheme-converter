@@ -1,6 +1,6 @@
 # Finding and browsing schemes
 
-[← README](../README.md) · [Formats](formats.md) · [Applying](applying.md) · [Editors](editors.md) · [Mapping](mapping.md) · [Design](design.md)
+[← README](../README.md) · [Formats](formats.md) · [Applying](applying.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Mapping](mapping.md) · [Design](design.md)
 
 `cscx browse` opens a terminal interface over the schemes you already have: the list on the left, a preview of the highlighted one on the right, the path it was found at along the bottom.
 

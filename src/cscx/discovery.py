@@ -121,6 +121,10 @@ def search_locations() -> tuple[SearchLocation, ...]:
         SearchLocation("iTerm2 schemes", data / "iterm2", ("**/*.itermcolors",), "iterm2",
                        source="iterm2"),
 
+        SearchLocation("KDE schemes", data / "color-schemes", ("*.colors",), "kde"),
+        SearchLocation("KDE schemes", Path("/usr/share/color-schemes"),
+                       ("*.colors",), "kde"),
+
         SearchLocation("cscx themes", config / "cscx/themes", ("**/*",), None),
         # Neovim colorschemes exported by `cscx nvim-themes`, stored in kitty
         # format because it holds a palette losslessly and everything here
@@ -259,6 +263,7 @@ _BINARIES = {
     "foot": ("foot",),
     "wezterm": ("wezterm",),
     "xresources": ("xrdb",),
+    "kde": ("plasma-apply-colorscheme",),
     "vim": ("vim",),
     "neovim": ("nvim",),
     "helix": ("hx", "helix"),

@@ -1,6 +1,6 @@
 # Applying a scheme
 
-[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Editors](editors.md) · [Mapping](mapping.md) · [Design](design.md)
+[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Mapping](mapping.md) · [Design](design.md)
 
 Three commands, in increasing order of permanence: `live` recolours the terminal you are sitting in, `activate` installs a scheme so it survives a restart, and `active` tells you what each application ended up using.
 

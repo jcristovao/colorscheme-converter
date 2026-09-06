@@ -11,6 +11,7 @@ from . import (
     foot,
     ghostty,
     iterm2,
+    kde,
     kitty,
     konsole,
     wezterm,
@@ -18,7 +19,8 @@ from . import (
     xresources,
 )
 
-__all__ = ["FormatParser", "PARSERS", "get_parser", "detect_format", "parse_file"]
+__all__ = ["FormatParser", "PARSERS", "READ_ONLY", "get_parser",
+           "detect_format", "parse_file"]
 
 
 @runtime_checkable
@@ -42,6 +44,11 @@ class ParseError(ValueError):
     """Raised when a source cannot be read as the requested format."""
 
 
+#: Formats that can be read but not written back as a terminal scheme. KDE is
+#: a desktop target, written through `desktops/`, so it has no entry in
+#: `emitters/` -- the two registries are otherwise required to match.
+READ_ONLY = frozenset({"kde"})
+
 _MODULES = (
     kitty,
     ghostty,
@@ -52,6 +59,7 @@ _MODULES = (
     wezterm,
     windows_terminal,
     xresources,
+    kde,
 )
 
 PARSERS: dict[str, FormatParser] = {}

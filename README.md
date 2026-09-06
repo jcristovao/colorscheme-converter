@@ -109,6 +109,21 @@ $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
 
 Editors are written, not read — with one exception: neovim colorschemes can be read *back* into palettes, so a theme you love in your editor can become your terminal's. → [editor themes](docs/editors.md)
 
+## Desktops
+
+And the desktop around them. A terminal palette also writes a KDE Plasma colour scheme, so Plasma stops fighting the terminal.
+
+| Desktop | Output | Installs as |
+|---|---|---|
+| `kde` (`plasma`, `kde-plasma`) | `.colors` | `~/.local/share/color-schemes/NAME.colors` |
+
+```console
+$ cscx convert kitty.conf --to kde,konsole -o ~/themes
+$ plasma-apply-colorscheme mine
+```
+
+The seven colour sets a `.colors` file carries turn out to be mostly the same base16 roles the editor themes use — red is `ForegroundNegative`, green is `ForegroundPositive`, blue is `ForegroundLink` — over a much finer surface ramp. What is genuinely new is the accent, which Plasma leans on and a terminal does not have, and a set of contrast checks calibrated so that Breeze passes them. Unlike the editors this one is also read, though mostly so the writer can be tested against itself. → [desktop colour schemes](docs/desktops.md)
+
 ## Commands
 
 | | |
@@ -124,7 +139,7 @@ Editors are written, not read — with one exception: neovim colorschemes can be
 | [`cscx active`](docs/applying.md#what-is-each-application-using) | what is each application using? |
 | [`cscx nvim-themes`](docs/editors.md#reading-neovim-colorschemes-back-in) | read neovim's colorschemes in as sources |
 | [`cscx mapping`](docs/mapping.md) | inspect or check the editor mapping |
-| `cscx formats` | list every format, editor and alias |
+| `cscx formats` | list every format, editor, desktop and alias |
 
 Every command takes `--help`, and `man cscx` is the full reference.
 
@@ -134,7 +149,7 @@ Every command takes `--help`, and `man cscx` is the full reference.
 
 **Only `activate` changes your configuration.** `convert` and the browser's copy write new files and tell you where they went. `activate` is the one command that edits a file you didn't ask it to create, and it plans, backs up, validates with the real application, and rolls back if that application would reject the result. → [applying a scheme](docs/applying.md)
 
-**The editor mapping is yours to change.** Which ANSI hue means "variable", how far the interface shades step, how readable a comment must be — all have defaults that need no configuration, and all can be overridden in `~/.config/cscx/mapping.toml`. → [tuning the mapping](docs/mapping.md)
+**The editor mapping is yours to change.** Which ANSI hue means "variable", how far the interface shades step, how readable a comment must be, which colour Plasma takes as its accent — all have defaults that need no configuration, and all can be overridden in `~/.config/cscx/mapping.toml`. → [tuning the mapping](docs/mapping.md)
 
 ## Documentation
 
@@ -144,12 +159,13 @@ $ cscx formats
 $ cscx convert --help
 ```
 
-`docs/cscx.1` is the reference: every command, option, format and editor. These pages are the detail behind it:
+`docs/cscx.1` is the reference: every command, option, format, editor and desktop. These pages are the detail behind it:
 
 - [Formats](docs/formats.md) — color spellings, what survives a conversion, gap filling
 - [Finding and browsing](docs/browsing.md) — the browser, fuzzy filtering, where schemes are found
 - [Applying a scheme](docs/applying.md) — live preview, activation, what each app is using
 - [Editor themes](docs/editors.md) — the base16 mapping, per-editor notes, Claude Code, neovim read-back
+- [Desktop colour schemes](docs/desktops.md) — KDE Plasma: the surface ramp, the accent, what Plasma computes itself
 - [Tuning the mapping](docs/mapping.md) — the optional `mapping.toml`
 - [Design notes](docs/design.md) — why it's built this way, and how each format was verified
 - [Contributing](docs/contributing.md) — testing, adding a format, adding an editor

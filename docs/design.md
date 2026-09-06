@@ -1,12 +1,22 @@
 # Design notes
 
-[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Mapping](mapping.md)
+[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Mapping](mapping.md)
 
 Why the thing is built the way it is. Nothing here is needed to use it.
 
 ## Hub and spoke
 
-Every format is parsed into a single `Palette`, and every format is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters — instead of the 72 directed pairs a format-to-format converter would need. Editor themes are generated from the same palette through a separate [mapping layer](editors.md#how-the-mapping-works).
+Every format is parsed into a single `Palette`, and every format is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters — instead of the 72 directed pairs a format-to-format converter would need.
+
+Three kinds of spoke hang off that hub, and they are separate because their protocols genuinely differ, not because their subjects do:
+
+| | Registry | |
+|---|---|---|
+| Terminals | `formats/` + `emitters/` | read *and* written, so they round-trip |
+| Editors | `editors/` | write-only: a palette expands into hundreds of highlight groups and cannot be read back out of them |
+| Desktops | `desktops/` | write-only, through the same [mapping layer](editors.md#how-the-mapping-works) the editors use |
+
+Editors and desktops both consume `roles.derive()`, so the split between them costs one small registry and buys names that stay true — `cscx formats` would otherwise have to file KDE under "editors" for as long as the file existed, and GTK or Kvantum would file there too. KDE is also *parsed*, but as a read-only format: it has no entry in `emitters/`, which is the one place the two terminal registries are otherwise required to match.
 
 ## Rules the code follows
 

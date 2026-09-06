@@ -169,11 +169,12 @@ async def test_rescan_reloads_the_list():
 
 
 def test_every_convertible_target_is_offered():
+    from cscx.desktops import DESKTOPS
     from cscx.editors import EDITORS
     from cscx.emitters import EMITTERS
 
     offered = {t.name for t in _targets()}
-    assert offered == set(EMITTERS) | set(EDITORS)
+    assert offered == set(EMITTERS) | set(EDITORS) | set(DESKTOPS)
 
 
 # -- live preview ---------------------------------------------------------

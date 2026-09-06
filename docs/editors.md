@@ -1,6 +1,6 @@
 # Editor themes
 
-[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Mapping](mapping.md) · [Design](design.md)
+[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Desktops](desktops.md) · [Mapping](mapping.md) · [Design](design.md)
 
 The same palette that produces a terminal theme produces an editor one.
 

@@ -29,7 +29,7 @@ from pathlib import Path
 from ._text import strip_jsonc
 from .palette import Palette
 
-__all__ = ["Active", "detect", "detect_one", "TERMINALS", "EDITORS"]
+__all__ = ["Active", "detect", "detect_one", "TERMINALS", "EDITORS", "DESKTOPS"]
 
 #: How long to let an editor start up before giving up on it.
 TIMEOUT = 20
@@ -356,10 +356,41 @@ def _vscode(app: str) -> Active:
     return Active(app, "editor", None, source="not configured")
 
 
+def _kde() -> Active:
+    """Which colour scheme Plasma is using, from kdeglobals.
+
+    Applying a scheme copies it *into* kdeglobals rather than referencing it,
+    so the name recorded there is the only link back to the file it came from.
+    A scheme that has since been uninstalled leaves the name resolving to
+    nothing, which is worth saying rather than hiding.
+    """
+    if not shutil.which("plasma-apply-colorscheme"):
+        return Active("kde", "desktop", None, source="not installed")
+
+    config = _config_home() / "kdeglobals"
+    try:
+        text = config.read_text(errors="replace")
+    except OSError:
+        return Active("kde", "desktop", None, source="not configured")
+
+    match = re.search(r"(?m)^ColorScheme\s*=\s*(.+?)\s*$", text)
+    if match is None:
+        # Plasma falls back to Breeze without writing anything down.
+        return Active("kde", "desktop", None, source=f"{config}, unset (Breeze)")
+
+    name = match.group(1)
+    for root in (_data_home() / "color-schemes", Path("/usr/share/color-schemes")):
+        if (path := root / f"{name}.colors").is_file():
+            return Active("kde", "desktop", name, path, str(config))
+    return Active("kde", "desktop", name, None, str(config),
+                  note="the scheme is applied but its file is no longer installed")
+
+
 # -- registry -------------------------------------------------------------
 
 TERMINALS = ("kitty", "alacritty", "foot", "ghostty", "konsole", "xresources")
 EDITORS = ("vim", "neovim", "helix", "emacs", "vscode", "cursor", "antigravity")
+DESKTOPS = ("kde",)
 
 _DETECTORS = {
     "kitty": _kitty,
@@ -375,7 +406,14 @@ _DETECTORS = {
     "vscode": lambda: _vscode("vscode"),
     "cursor": lambda: _vscode("cursor"),
     "antigravity": lambda: _vscode("antigravity"),
+    "kde": _kde,
 }
+
+
+def _kind(app: str) -> str:
+    if app in TERMINALS:
+        return "terminal"
+    return "desktop" if app in DESKTOPS else "editor"
 
 
 def detect_one(app: str) -> list[Active]:
@@ -385,12 +423,13 @@ def detect_one(app: str) -> list[Active]:
     try:
         result = _DETECTORS[app]()
     except Exception as exc:                 # never let one probe sink the rest
-        return [Active(app, "terminal" if app in TERMINALS else "editor",
-                       None, source=f"probe failed: {exc}")]
+        return [Active(app, _kind(app), None, source=f"probe failed: {exc}")]
     return result if isinstance(result, list) else [result]
 
 
-def detect(*, terminals: bool = True, editors: bool = True) -> list[Active]:
+def detect(
+    *, terminals: bool = True, editors: bool = True, desktops: bool = True
+) -> list[Active]:
     """Everything currently themed, skipping applications that are absent.
 
     `editors=False` avoids starting vim and neovim, which is what a caller
@@ -401,6 +440,8 @@ def detect(*, terminals: bool = True, editors: bool = True) -> list[Active]:
         apps += list(TERMINALS)
     if editors:
         apps += list(EDITORS)
+    if desktops:
+        apps += list(DESKTOPS)
 
     found: list[Active] = []
     for app in apps:

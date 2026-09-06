@@ -1,8 +1,10 @@
 # Formats
 
-[← README](../README.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Mapping](mapping.md) · [Design](design.md)
+[← README](../README.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Mapping](mapping.md) · [Design](design.md)
 
 All nine terminal formats are both read and written. The [README](../README.md#supported-formats) has the table of which files each one lives in; this page covers what converting between them actually costs.
+
+There is a tenth format that is read but never written as a terminal scheme: KDE Plasma's `.colors`. It is written through a different route, and read back mostly so that route can be tested. → [desktop colour schemes](desktops.md)
 
 ## Color values
 

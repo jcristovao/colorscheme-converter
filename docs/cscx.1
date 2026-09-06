@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-09-05" "cscx 0.15.0" "User Commands"
+.TH CSCX 1 "2026-09-06" "cscx 0.16.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -305,7 +305,11 @@ output.
 Print the version and exit.
 .
 .SH TERMINAL FORMATS
-All nine are both read and written.
+All nine are both read and written. A tenth format,
+.BR kde ,
+is read but written through
+.B DESKTOPS
+below rather than as a terminal scheme.
 .TP
 .B alacritty
 .IR .toml ", " .yml .
@@ -493,6 +497,69 @@ for a light scheme. Drop that directory into
 or
 .I ~/.antigravity/extensions
 and restart the editor.
+.
+.SH DESKTOPS
+A terminal palette also writes a desktop colour scheme, so the desktop around
+the terminal matches it.
+.TP
+.B kde
+.IR .colors ,
+installed as
+.IR ~/.local/share/color\-schemes/NAME.colors .
+KDE Plasma. Aliased as
+.B plasma
+and
+.BR kde\-plasma .
+Apply it with
+.BR plasma\-apply\-colorscheme (1).
+.PP
+A
+.I .colors
+file holds seven colour sets of twelve keys each, but few of those are
+independent, and they follow the same base16 roles the editors use:
+.B ForegroundNegative
+is ANSI red,
+.B ForegroundPositive
+green,
+.B ForegroundNeutral
+yellow,
+.B ForegroundLink
+blue and
+.B ForegroundVisited
+magenta.
+.B DecorationHover
+takes cyan, which is otherwise the one hue with nowhere to go in a KDE scheme.
+.PP
+What is added is a surface ramp. Plasma stacks the content view under the
+window chrome under buttons and titlebars, in steps far finer than an editor
+needs, so KDE has four of its own under
+.B [kde]
+in the mapping file.
+.SS The accent
+Plasma leans on a single accent \(em focus rings, hover, active text, the
+selection, the titlebar tint \(em and a terminal scheme has none. The scheme's
+selection colour is tried first, then tested: a terminal draws text on top of
+its selection, so that colour usually sits close to the background and cannot
+carry a focus ring. What fails falls back to ANSI 4. Either way the result is
+moved until a focus ring in it is visible on every surface, keeping its hue.
+.SS What Plasma computes itself
+Bevels, frames and separators come from
+.BR KColorScheme::shade ()
+applied to a set's background; disabled text is the foreground faded toward
+it; the tinted error, warning and success banners are the semantic foregrounds
+mixed into it. None of those is written, and none can be overridden.
+.PP
+That shade function collapses below a luminance of 0.006, taking every frame
+and separator with it, so a
+.B #000000
+background produces a desktop with no visible edges. The derived surfaces are
+held clear of that; the background itself is left alone and reported instead.
+.SS What is checked
+KDE enforces no contrast requirement of its own, so an unreadable scheme
+installs exactly like a readable one. Normal text is checked at 4.5:1,
+secondary text and focus rings at 3:1, faded disabled text and selected text
+at 2:1, and row striping for visibility. Each is reported once, naming the
+worst set. The bars are calibrated so that Breeze passes them.
 .
 .SH BROWSING
 .B cscx browse
@@ -687,6 +754,18 @@ konsole installs the scheme but cannot select it without knowing which profile
 you use; pass
 .B \-\-profile
 or pick the scheme in its settings.
+.PP
+.B kde
+places the scheme where Plasma looks and prints the
+.BR plasma\-apply\-colorscheme (1)
+line to run, then confirms Plasma can see it. If an accent colour is
+configured \(em
+.B AccentColor
+in
+.I kdeglobals
+or the wallpaper accent \(em Plasma overrides the scheme's active text, links
+and decorations on the way in, and the command says so rather than letting the
+accent silently not apply.
 .
 .SH LIVE PREVIEW
 .B cscx live
@@ -848,6 +927,27 @@ the ratio comments must clear, searched between
 .I comment_floor
 and
 .IR comment_ceiling .
+.PP
+.TP
+.B [kde]
+The Plasma scheme.
+.I accent
+takes an ANSI slot or
+.RB \(dq selection \(dq,
+which uses the terminal's own selection background when it can carry a focus
+ring;
+.I hover
+takes a slot or
+.RB \(dq accent \(dq.
+.IR alternate ,
+.IR window ,
+.I button
+and
+.I header
+are the surface ramp, as fractions from the background toward the foreground.
+They are much smaller than
+.B [ramp]
+because they are elevation rather than contrast.
 .PP
 An explicit
 .B \-\-contrast
@@ -1094,4 +1194,6 @@ its cursor as a pair and cannot set one half alone.
 .BR nvim (1),
 .BR hx (1),
 .BR emacs (1),
-.BR code (1)
+.BR code (1),
+.BR plasma\-apply\-colorscheme (1),
+.BR kcolorschemeeditor (1)

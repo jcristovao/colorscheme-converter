@@ -1,6 +1,6 @@
 # Contributing
 
-[← README](../README.md) · [Formats](formats.md) · [Editors](editors.md) · [Design](design.md)
+[← README](../README.md) · [Formats](formats.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Design](design.md)
 
 ```console
 $ pip install -e '.[tui]'
@@ -73,11 +73,19 @@ Because the colors in those tables are named by role and never by hue, the table
 
 If the target is a fork of one already supported, don't copy the writer. `vscode_forks.py` is the pattern: delegate to the original and carry only your own `INSTALL_PATH`, with a test asserting the output stays identical.
 
+## Adding a desktop
+
+Desktop writers live in `src/cscx/desktops/` and follow the editors' protocol exactly — `NAME`, `EXTENSION`, `FILENAME`, `BINARY`, `INSTALL_PATH`, `emit(palette, *, terminal_exact, contrast_target)` — plus a `warnings()` of the same shape, because a desktop scheme has failure modes worth reporting that a comment in the file is not enough for.
+
+`roles.derive()` is reused whole, the same as for an editor. What is likely to be new is a surface ramp: a desktop stacks its surfaces, and the spacing between them is a property of that desktop rather than of the palette. KDE's is four steps under `[kde]` in the mapping file, deliberately separate from `[ramp]` because Plasma's elevation is far finer than an editor's cursorline and statusline. → [desktop colour schemes](desktops.md)
+
+Two things are worth copying from `kde.py`. Find out what the desktop *computes* rather than reads — Plasma derives every bevel, all disabled text and the tinted message banners from values in the file, so writing them is impossible and anticipating them is necessary. And calibrate any contrast gate against the scheme the desktop itself ships: a bar that the stock theme fails will fire on nearly everything and teach nobody anything. `test_breeze_passes_its_own_gates` is that check written down.
+
 ## Documentation
 
 Every user-facing change lands in three places, and the test suite checks all three agree:
 
-- **`docs/cscx.1`** — the reference. Every command, option, format and editor.
+- **`docs/cscx.1`** — the reference. Every command, option, format, editor and desktop.
 - **`README.md`** — the entry point. Keep it short; link out.
 - **`docs/*.md`** — the detail, one page per subject.
 

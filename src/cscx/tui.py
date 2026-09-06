@@ -36,6 +36,7 @@ from .discovery import (
     installed_applications,
     tilde,
 )
+from .desktops import DESKTOPS, get_desktop
 from .editors import EDITORS, EditorPaletteError, get_editor
 from .emitters import EMITTERS, get_emitter
 from .formats import parse_file
@@ -96,7 +97,7 @@ class Target:
     """Something a scheme can be written as."""
 
     name: str
-    kind: str          # "terminal" or "editor"
+    kind: str          # "terminal", "editor" or "desktop"
     filename: str      # template with {name}
 
     @property
@@ -111,6 +112,9 @@ def _targets() -> list[Target]:
     ]
     targets += [
         Target(name, "editor", get_editor(name).FILENAME) for name in sorted(EDITORS)
+    ]
+    targets += [
+        Target(name, "desktop", get_desktop(name).FILENAME) for name in sorted(DESKTOPS)
     ]
     return targets
 
@@ -804,6 +808,8 @@ class BrowseApp(App[None]):
 
 
 def _render_target(palette: Palette, target: Target) -> str | bytes:
+    if target.kind == "desktop":
+        return get_desktop(target.name).emit(palette)
     if target.kind == "editor":
         return get_editor(target.name).emit(palette)
     return get_emitter(target.name).emit(palette, None)

@@ -50,6 +50,11 @@ ACCENT_ROLES = ("base08", "base09", "base0A", "base0B", "base0C", "base0D",
 #: Ramp positions, as a fraction of the way from background to foreground.
 RAMP_KEYS = ("base01", "base02", "base04", "base06", "base07")
 
+#: Plasma's surfaces, as a fraction of the way from background to foreground.
+#: Its elevation steps are much finer than an editor's cursorline and
+#: statusline, so the base16 ramp is too coarse to reuse here.
+SURFACE_KEYS = ("alternate", "window", "button", "header")
+
 
 @dataclass(frozen=True, slots=True)
 class Mapping:
@@ -66,6 +71,14 @@ class Mapping:
     #: The window the comment search may move within.
     comment_floor: float = 0.45
     comment_ceiling: float = 0.85
+    #: How far each Plasma surface steps from the background.
+    surfaces: dict[str, float] = field(default_factory=dict)
+    #: Which ANSI slot becomes the desktop accent, or "selection" to take the
+    #: terminal's own selection background when it has one.
+    kde_accent: int | str = "selection"
+    #: Which ANSI slot becomes the hover decoration, or "accent" to match
+    #: DecorationFocus the way Breeze does.
+    kde_hover: int | str = 6
     #: Where this came from, for `cscx mapping` to report.
     source: Path | None = None
 
@@ -75,6 +88,9 @@ class Mapping:
     def step(self, role: str, default: float) -> float:
         return self.ramp.get(role, default)
 
+    def surface(self, key: str, default: float) -> float:
+        return self.surfaces.get(key, default)
+
 
 #: What applies when there is no file, which is the normal case.
 DEFAULT = Mapping(
@@ -82,6 +98,10 @@ DEFAULT = Mapping(
              "base0D": 4, "base0E": 5},
     ramp={"base01": 0.10, "base02": 0.22, "base04": 0.72,
           "base06": 0.25, "base07": 0.50},
+    # Proportioned after Breeze, whose View -> Window -> Button/Header steps
+    # are far smaller than anything the editor ramp needs.
+    surfaces={"alternate": 0.045, "window": 0.09, "button": 0.13,
+              "header": 0.13},
 )
 
 
@@ -133,10 +153,10 @@ def _merge(base: Mapping, document: dict) -> Mapping:
     ignored would leave someone staring at a theme that did not change, with
     nothing to tell them why.
     """
-    if unknown := set(document) - {"roles", "ramp"}:
+    if unknown := set(document) - {"roles", "ramp", "kde"}:
         raise MappingError(
             f"unknown section(s): {', '.join(sorted(unknown))}; "
-            f"expected [roles] and [ramp]"
+            f"expected [roles], [ramp] and [kde]"
         )
 
     accents = dict(base.accents)
@@ -193,9 +213,55 @@ def _merge(base: Mapping, document: dict) -> Mapping:
             f"leaving no range to search"
         )
 
+    surfaces, accent, hover = _kde(base, document.get("kde") or {})
+
     return replace(
         base, accents=accents, ramp=ramp,
         comment_contrast=contrast, comment_floor=floor, comment_ceiling=ceiling,
+        surfaces=surfaces, kde_accent=accent, kde_hover=hover,
+    )
+
+
+def _kde(base: Mapping, section: dict) -> tuple[dict[str, float], int | str, int | str]:
+    """Read the [kde] overlay: the surface ramp, the accent and the hover.
+
+    `accent` and `hover` each take an ANSI slot or a word, because the useful
+    default for both is a reference rather than a number: the accent follows
+    the scheme's own selection colour, and the hover can be told to follow the
+    accent the way Breeze has it.
+    """
+    surfaces = dict(base.surfaces)
+    accent, hover = base.kde_accent, base.kde_hover
+
+    for key, value in section.items():
+        if key == "accent":
+            accent = _slot_or_word(key, value, "selection")
+        elif key == "hover":
+            hover = _slot_or_word(key, value, "accent")
+        elif key in SURFACE_KEYS:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise MappingError(f"[kde] {key} = {value!r}: expected a number")
+            if not 0.0 <= value <= 1.0:
+                raise MappingError(
+                    f"[kde] {key} = {value}: expected a fraction between 0.0 and 1.0"
+                )
+            surfaces[key] = float(value)
+        else:
+            raise MappingError(
+                f"[kde] {key}: unknown; expected one of "
+                f"{', '.join((*SURFACE_KEYS, 'accent', 'hover'))}"
+            )
+
+    return surfaces, accent, hover
+
+
+def _slot_or_word(key: str, value: object, word: str) -> int | str:
+    if value == word:
+        return word
+    if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 15:
+        return value
+    raise MappingError(
+        f"[kde] {key} = {value!r}: expected an ANSI slot 0-15, or \"{word}\""
     )
 
 
@@ -238,5 +304,25 @@ def dump(mapping: Mapping | None = None) -> str:
         f"comment_contrast = {current.comment_contrast}",
         f"comment_floor = {current.comment_floor}",
         f"comment_ceiling = {current.comment_ceiling}",
+        "",
+        "[kde]",
+        "# Which ANSI slot becomes the desktop accent -- focus rings, hover,",
+        '# active text, selection. "selection" takes the terminal\'s own',
+        "# selection background when it has one, falling back to ANSI 4.",
+        f"accent = {_toml(current.kde_accent)}",
+        "# The hover decoration. ANSI 6 by default, which is otherwise the one",
+        '# hue with no home in a KDE scheme; "accent" matches Breeze instead.',
+        f"hover = {_toml(current.kde_hover)}",
+        "",
+        "# How far each Plasma surface steps from the background toward the",
+        "# foreground. Much smaller than [ramp]: these are elevation, not",
+        "# contrast, and Breeze separates its surfaces by only a few percent.",
     ]
+    for key in SURFACE_KEYS:
+        lines.append(f"{key} = {current.surfaces[key]}")
+
     return "\n".join(lines) + "\n"
+
+
+def _toml(value: int | str) -> str:
+    return str(value) if isinstance(value, int) else f'"{value}"' 

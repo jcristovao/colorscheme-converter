@@ -15,9 +15,10 @@ from .editors import (
     get_editor,
     theme_warnings,
 )
+from .desktops import DESKTOPS, get_desktop, scheme_warnings
 from .emitters import EMITTERS, get_emitter
 from .fill import fill
-from .formats import PARSERS, detect_format, get_parser, parse_file
+from .formats import PARSERS, READ_ONLY, detect_format, get_parser, parse_file
 from .palette import Palette, ANSI_NAMES
 
 
@@ -27,8 +28,8 @@ def _format_names() -> list[str]:
 
 
 def _target_names() -> list[str]:
-    """Everything that can be written: terminal formats plus editors."""
-    return sorted(set(EMITTERS) | set(EDITORS))
+    """Everything that can be written: terminal formats, editors, desktops."""
+    return sorted(set(EMITTERS) | set(EDITORS) | set(DESKTOPS))
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,11 +76,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     convert.add_argument(
         "--terminal-exact", action="store_true",
-        help="editors only: use just the 16 palette colors, deriving no UI shades",
+        help="editors and desktops only: use just the 16 palette colors, "
+             "deriving no UI shades",
     )
     convert.add_argument(
         "--contrast", type=float, default=None, metavar="RATIO",
-        help="editors only: minimum contrast for comments against the background "
+        help="editors and desktops only: minimum contrast for comments against the background "
              "(default 4.5, WCAG AA); 0 disables the check",
     )
     convert.add_argument("--name", help="override the scheme name")
@@ -466,6 +468,8 @@ def _cmd_list(args: argparse.Namespace) -> int:
 def _cmd_formats() -> int:
     seen: dict[str, list[str]] = {}
     for alias, parser in PARSERS.items():
+        if parser.NAME in READ_ONLY:
+            continue  # listed under its own kind, below
         seen.setdefault(parser.NAME, [])
         if alias != parser.NAME:
             seen[parser.NAME].append(alias)
@@ -481,6 +485,13 @@ def _cmd_formats() -> int:
     for name in sorted(EDITORS):
         editor = get_editor(name)
         print(f"  {name:18} {editor.EXTENSION:24} {editor.INSTALL_PATH.format(name='NAME')}")
+
+    print()
+    print("desktops (written, and read back)")
+    for name in sorted(DESKTOPS):
+        desktop = get_desktop(name)
+        print(f"  {name:18} {desktop.EXTENSION:24} "
+              f"{desktop.INSTALL_PATH.format(name='NAME')}")
     return 0
 
 
@@ -554,9 +565,11 @@ def _cmd_convert(args: argparse.Namespace) -> int:
         print(f"cscx: {exc}", file=sys.stderr)
         return 1
 
-    _report_gaps(palette, derived, is_editor=name in EDITORS)
+    _report_gaps(palette, derived, is_editor=name in EDITORS or name in DESKTOPS)
     if name in EDITORS:
         _report_theme_warnings(palette, args)
+    elif name in DESKTOPS:
+        _report_desktop_warnings(palette, name, args)
 
     if args.output is None:
         if binary:
@@ -573,9 +586,21 @@ def _cmd_convert(args: argparse.Namespace) -> int:
 def _writer(target: str, args: argparse.Namespace, derived: dict):
     """Resolve a target name to `(name, extension, binary, render)`.
 
-    Terminal emitters and editor writers take different arguments, so they are
-    wrapped into one shape here rather than complicating either protocol.
+    Terminal emitters, editor writers and desktop writers take different
+    arguments, so they are wrapped into one shape here rather than
+    complicating any of the three protocols.
     """
+    if (desktop := _as_desktop(target)) is not None:
+        return (
+            desktop.NAME,
+            desktop.FILENAME,
+            desktop.BINARY,
+            lambda palette: desktop.emit(
+                palette,
+                terminal_exact=args.terminal_exact,
+                contrast_target=args.contrast,
+            ),
+        )
     if (editor := _as_editor(target)) is not None:
         return (
             editor.NAME,
@@ -590,8 +615,8 @@ def _writer(target: str, args: argparse.Namespace, derived: dict):
     try:
         emitter = get_emitter(target)
     except KeyError:
-        # Neither an editor nor a terminal format. `get_emitter` would name
-        # only the terminal formats, which reads as "editors are unsupported"
+        # None of the three. `get_emitter` would name only the terminal
+        # formats, which reads as "editors and desktops are unsupported"
         # rather than "that is not one of them".
         raise KeyError(
             f"unknown target {target!r}; known: {', '.join(_target_names())}"
@@ -614,6 +639,18 @@ def _as_editor(target: str):
     """
     try:
         return get_editor(target)
+    except KeyError:
+        return None
+
+
+def _as_desktop(target: str):
+    """The desktop writer for `target`, or None if it names something else.
+
+    Through `get_desktop` rather than a membership test, so its aliases --
+    `plasma`, `kde-plasma` -- work for `--to` as well.
+    """
+    try:
+        return get_desktop(target)
     except KeyError:
         return None
 
@@ -669,6 +706,22 @@ def _report_theme_warnings(palette, args: argparse.Namespace) -> None:
     except EditorPaletteError:
         return
     for warning in warnings:
+        print(f"cscx: {warning}", file=sys.stderr)
+
+
+def _report_desktop_warnings(palette, desktop: str, args: argparse.Namespace) -> None:
+    """Desktop caveats, on stderr as well as in the file.
+
+    Worth repeating outside the file: KDE enforces no contrast requirement of
+    its own, so an unreadable scheme installs and applies exactly like a
+    readable one.
+    """
+    for warning in scheme_warnings(
+        palette,
+        desktop,
+        terminal_exact=args.terminal_exact,
+        contrast_target=args.contrast,
+    ):
         print(f"cscx: {warning}", file=sys.stderr)
 
 

@@ -1,6 +1,6 @@
 # Tuning the mapping
 
-[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Design](design.md)
+[← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Design](design.md)
 
 **None of this is required.** cscx works with no file present, which is the normal case and what every generated theme has used so far. This page is for when a default isn't to your taste.
 
@@ -53,6 +53,21 @@ $ cscx mapping --check --path ./candidate.toml
 | `comment_ceiling` | `0.85` | |
 
 The ceiling is the one worth understanding before changing: without it, a low-contrast scheme puts comments on top of normal text. See [Comments are held to a contrast ratio](editors.md#how-the-mapping-works).
+
+**`[kde]`** — the [Plasma scheme](desktops.md): its accent, its hover colour, and its own surface ramp.
+
+| Key | Default | |
+|---|---|---|
+| `accent` | `"selection"` | focus rings, hover, active text, selection. `"selection"` takes the terminal's own selection background when it can carry a focus ring, falling back to ANSI 4; an integer pins a slot instead |
+| `hover` | `6` | `DecorationHover`. `"accent"` matches Breeze, which makes hover and focus identical |
+| `alternate` | `0.045` | row striping |
+| `window` | `0.09` | window chrome, tooltips |
+| `button` | `0.13` | buttons |
+| `header` | `0.13` | titlebars, header areas |
+
+The four ramp keys are fractions from the background toward the foreground, the same as `[ramp]`, but much smaller: they are elevation rather than contrast, and Breeze separates its surfaces by only a few percent. They are separate from `[ramp]` for that reason — `base01` and `base02` are spaced for a cursorline and a selection, which is far too coarse for Plasma's stack.
+
+Whatever `accent` resolves to is still moved until a focus ring drawn in it is visible on every surface, so pinning a slot sets the hue, not the final value. → [the accent](desktops.md#the-accent)
 
 ## Two decisions behind the design
 

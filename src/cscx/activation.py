@@ -19,10 +19,11 @@ import os
 import shutil
 import subprocess
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 
+from .desktops import DESKTOPS, get_desktop
 from .editors import EDITORS, get_editor
 from .editors._common import slug
 from .emitters import get_emitter
@@ -366,6 +367,70 @@ def _vscode_extension(palette: Palette, name: str, app: str) -> Plan:
     )
 
 
+# -- desktop activators ---------------------------------------------------
+
+
+def _kdeglobals_accent() -> str:
+    """Whether Plasma will override the scheme's accent, and how to stop it.
+
+    `plasma-apply-colorscheme` does not copy a scheme verbatim: if an accent
+    colour is configured, it overwrites ForegroundActive, ForegroundLink,
+    DecorationFocus, DecorationHover and the selection background on the way
+    into kdeglobals. Installing a scheme whose accent then silently does not
+    apply is exactly the sort of thing worth saying out loud.
+    """
+    text = _read(_config_home() / "kdeglobals")
+    general = text.split("[General]", 1)[-1].split("\n[", 1)[0] if "[General]" in text else ""
+
+    if "accentColorFromWallpaper=true" in general.replace(" ", ""):
+        return ("Plasma is taking its accent from the wallpaper, which overrides "
+                "this scheme's accent, links and focus rings; turn it off in "
+                "System Settings > Colors, or unset accentColorFromWallpaper")
+    if "AccentColor=" in general:
+        return ("kdeglobals sets AccentColor, which overrides this scheme's "
+                "accent, links and focus rings; clear it in System Settings > "
+                "Colors by choosing the scheme's own accent")
+    return ""
+
+
+def _desktop(app: str) -> object:
+    """Place the scheme where the desktop already looks, and stop there.
+
+    Selecting it stays a deliberate act, the same way cscx will not edit an
+    init file to choose an editor colorscheme. `plasma-apply-colorscheme`
+    rewrites kdeglobals, which is a file the user has opinions about.
+    """
+    def build(palette: Palette, name: str) -> Plan:
+        desktop = get_desktop(app)
+        target = _expand(desktop.INSTALL_PATH.format(name=name))
+
+        # Plasma identifies a scheme by its file stem, so the ColorScheme key
+        # inside cannot disagree with the name the file is installed under.
+        # The writer derives that key from the palette's name, which `--name`
+        # overrides only for the path -- so rename the palette here, and only
+        # when the two would actually differ, to keep the nicer display name
+        # in the ordinary case.
+        if slug(palette.name) != name:
+            palette = replace(palette, name=name)
+        # The scheme's own caveats belong in the plan, not only in the file
+        # it writes: this is the command that puts it on the desktop, and
+        # --dry-run is the moment to read them. A desktop enforces no contrast
+        # requirement of its own, so nothing else will mention them.
+        warnings = list(desktop.warnings(palette))
+        if app == "kde" and (accent := _kdeglobals_accent()):
+            warnings.append(accent)
+
+        return Plan(
+            app=app,
+            steps=[Step(target, desktop.emit(palette), "the scheme itself",
+                        is_theme=True)],
+            reload=f"plasma-apply-colorscheme {name}",
+            warnings=warnings,
+        )
+
+    return build
+
+
 ACTIVATABLE: dict[str, object] = {
     "kitty": _kitty,
     "alacritty": _alacritty,
@@ -373,6 +438,7 @@ ACTIVATABLE: dict[str, object] = {
     "ghostty": _ghostty,
     "konsole": _konsole,
     **{app: _editor(app) for app in sorted(EDITORS)},
+    **{app: _desktop(app) for app in sorted(DESKTOPS)},
 }
 
 
@@ -495,6 +561,24 @@ def _check_foot(path: Path) -> str | None:
     return f"foot rejected {path}: {errors[0]}" if errors else None
 
 
+def _check_kde(path: Path) -> str | None:
+    """Ask Plasma itself whether it can see the scheme now that it is written.
+
+    `--list-schemes` is the only read-only question the tool answers, and it
+    catches the failure that actually happens: a scheme written somewhere
+    Plasma does not look, or under a name that disagrees with its filename.
+    """
+    if path.suffix != ".colors" or not shutil.which("plasma-apply-colorscheme"):
+        return None
+    result = subprocess.run(
+        ["plasma-apply-colorscheme", "--list-schemes"],
+        capture_output=True, text=True, timeout=30,
+    )
+    if path.stem.lower() not in result.stdout.lower():
+        return f"Plasma does not list {path.stem} after writing {path}"
+    return None
+
+
 def _check_kitty(path: Path) -> str | None:
     if path.suffix != ".conf" or not shutil.which("kitty"):
         return None
@@ -513,4 +597,5 @@ _CHECKERS = {
     "alacritty": _check_toml,
     "foot": _check_foot,
     "kitty": _check_kitty,
+    "kde": _check_kde,
 }
