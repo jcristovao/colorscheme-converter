@@ -48,6 +48,17 @@ from ..editors._common import slug
 from ..editors.roles import Roles, derive
 from ..mapping import Mapping, load as load_mapping
 from ..palette import Palette
+from ._common import (
+    DIM_CONTRAST,
+    SURFACE_DEFAULTS,
+    TEXT_CONTRAST,
+    Accent as _Accent,
+    accent_foreground,
+    contrasting,
+    make_visible as _usable,
+    pick_accent as _accent,
+    ramp,
+)
 
 NAME = "kde"
 EXTENSION = ".colors"
@@ -78,11 +89,6 @@ SHADE_FLOOR = 0.006
 #: cannot drop one back over the edge. Breeze Dark's own view background sits
 #: at 0.0079, which is the same judgement call made by hand.
 LUMA_FLOOR = 0.010
-
-#: WCAG minimums. Normal text is the same target the editor layer uses;
-#: secondary text and focus rings are UI components, which WCAG 2.1 puts at 3:1.
-TEXT_CONTRAST = 4.5
-DIM_CONTRAST = 3.0
 
 #: Where the semantic hues are put when they land on the highlight. The
 #: accent is usually one of them -- ANSI 4 -- so ForegroundLink on the
@@ -169,14 +175,6 @@ class Scheme:
         self.warnings: list[str] = []
 
 
-@dataclass(frozen=True, slots=True)
-class _Accent:
-    """The desktop accent, and where it came from."""
-
-    color: Color
-    source: str
-
-
 # -- the safe band --------------------------------------------------------
 
 
@@ -206,72 +204,6 @@ def _hold_in_band(color: Color) -> Color:
 # -- resolving the palette ------------------------------------------------
 
 
-def _accent(
-    palette: Palette, roles: Roles, mapping: Mapping, surfaces: tuple[Color, ...]
-) -> _Accent:
-    """The one colour Plasma leans on hardest.
-
-    A terminal scheme has no accent. Its selection colour is the closest
-    thing -- the one place the author picked a colour to mean "this is
-    singled out" -- but it only works as one when it is actually distinct
-    from the chrome, and usually it is not: a terminal renders text *on top*
-    of its selection, so the colour is chosen to sit close to the background.
-    Gruvbox's is #504945, barely off its own #282828.
-
-    So the selection colour is preferred and then tested, rather than
-    trusted. What fails falls back to ANSI 4, matching base16's base0D and
-    Breeze's own blue.
-    """
-    choice = mapping.kde_accent
-    if choice != "selection":
-        return _usable(palette.ansi[choice], surfaces, f"color{choice}")
-
-    selection = palette.selection_background
-    if selection is not None and _clears(selection, surfaces):
-        return _usable(selection, surfaces, "selection background")
-
-    reason = (
-        "color4; the selection background sits too close to the chrome to "
-        "carry a focus ring"
-        if selection is not None
-        else "color4, no selection colour in the source"
-    )
-    return _usable(roles["base0D"], surfaces, reason)
-
-
-def _clears(color: Color, surfaces: tuple[Color, ...]) -> bool:
-    """Whether a focus ring in this colour is visible on *every* surface."""
-    return all(contrast_ratio(color, surface) >= DIM_CONTRAST for surface in surfaces)
-
-
-def _usable(color: Color, surfaces: tuple[Color, ...], source: str) -> _Accent:
-    """Move an accent until a focus ring drawn in it is visible everywhere.
-
-    Hue is preserved rather than swapped for a more contrasting one: a gruvbox
-    desktop with a cyan focus ring is no longer gruvbox. This is the same move
-    the editor layer makes for comments -- keep the intended colour, walk it
-    until it clears the bar, and record that it moved.
-
-    The direction is away from the surfaces, which is *toward* white on a dark
-    scheme and toward black on a light one. Worth being careful about: the
-    hardest surface is the one closest to the accent in luminance, and on a
-    light scheme that is the darkest surface, not the lightest. Breeze Light
-    gets this wrong -- its focus ring is 1.9:1 on its own header.
-    """
-    if _clears(color, surfaces):
-        return _Accent(color, source)
-
-    # Every surface is a step from the background, so they share its polarity.
-    toward = Color(255, 255, 255) if is_dark(surfaces[0]) else Color(0, 0, 0)
-    for step in range(1, 101):
-        candidate = mix(color, toward, step / 100)
-        if _clears(candidate, surfaces):
-            return _Accent(
-                candidate, f"{source}, moved to {DIM_CONTRAST}:1 for the focus ring"
-            )
-    return _Accent(color, f"{source}, cannot reach {DIM_CONTRAST}:1 on every surface")
-
-
 def _hover(palette: Palette, mapping: Mapping, accent: _Accent) -> _Accent:
     """The hover decoration.
 
@@ -286,14 +218,9 @@ def _hover(palette: Palette, mapping: Mapping, accent: _Accent) -> _Accent:
     return _Accent(palette.ansi[choice], f"color{choice}")
 
 
-def _selection_foreground(palette: Palette, roles: Roles, accent: Color) -> Color:
-    """Text on the accent, which is the one place contrast can be chosen."""
-    if palette.selection_foreground is not None:
-        return palette.selection_foreground
-    light, dark = roles["base07"], roles["base00"]
-    if contrast_ratio(light, accent) >= contrast_ratio(dark, accent):
-        return light
-    return dark
+def _selection_foreground(palette: Palette, roles: Roles, accent: _Accent) -> Color:
+    """Text on the highlight, which is the one place contrast can be chosen."""
+    return accent_foreground(palette, roles, accent)
 
 
 #: The foregrounds that land on the highlight and need room made for them.
@@ -374,12 +301,7 @@ def resolve(
     # same colour and the elevation Plasma needs would be gone. Lifting the
     # base instead keeps the spacing and costs only the surfaces, never the
     # background the source actually stated.
-    ramp_base = _hold_in_band(background)
-
-    def surface(*keys: str) -> Color:
-        """A derived surface, stepped away from the background."""
-        total = sum(mapping.surface(key, _SURFACE_DEFAULTS[key]) for key in keys)
-        return mix(ramp_base, foreground, total)
+    surface = ramp(_hold_in_band(background), foreground, mapping)
 
     alternate = surface("alternate")
     window = surface("window")
@@ -432,7 +354,7 @@ def resolve(
         **common, "BackgroundNormal": window, "BackgroundAlternate": header,
     }
 
-    selection_fg = _selection_foreground(palette, roles, accent.color)
+    selection_fg = _selection_foreground(palette, roles, accent)
     scheme.sets["Colors:Selection"] = {
         **common,
         **_selection_hues(common, accent.color),
@@ -477,11 +399,8 @@ def resolve(
     return scheme
 
 
-_SURFACE_DEFAULTS = {"alternate": 0.045, "window": 0.09, "button": 0.13, "header": 0.13}
-
-
 def _pct(mapping: Mapping, key: str) -> str:
-    return f"{mapping.surface(key, _SURFACE_DEFAULTS[key]) * 100:.1f}%"
+    return f"{mapping.surface(key, SURFACE_DEFAULTS[key]) * 100:.1f}%"
 
 
 def _complementary(

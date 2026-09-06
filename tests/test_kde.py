@@ -520,12 +520,20 @@ def test_the_registry_exposes_the_protocol():
     for name, desktop in DESKTOPS.items():
         assert desktop.NAME == name
         assert desktop.EXTENSION.startswith(".")
+        # The scratch filename is always templated, because `--to all` writes
+        # every target into one directory. The install path need not be: GTK
+        # has exactly one gtk.css, which overrides are written into rather
+        # than added alongside.
         assert "{name}" in desktop.FILENAME
-        assert "{name}" in desktop.INSTALL_PATH
         assert desktop.BINARY is False
         assert callable(desktop.emit) and callable(desktop.warnings)
 
 
+def test_a_scheme_collection_installs_under_its_own_name():
+    """KDE holds many schemes at once, so its install path is per-scheme."""
+    assert "{name}" in get_desktop("kde").INSTALL_PATH
+
+
 def test_an_unknown_desktop_is_rejected():
     with pytest.raises(KeyError, match="unknown desktop"):
-        get_desktop("gnome")
+        get_desktop("cinnamon")

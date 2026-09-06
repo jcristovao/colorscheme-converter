@@ -395,6 +395,27 @@ def _kdeglobals_accent() -> str:
     return ""
 
 
+#: Plasma's GTK bridge. When it is installed it owns ~/.config/gtk-{3,4}.0/
+#: gtk.css and regenerates them from the *KDE* colour scheme, so anything
+#: written there is temporary.
+_GTK_BRIDGE = "kde-gtk-config"
+
+
+def _gtk_bridge_note(target: Path) -> str:
+    """Whether something else already owns this file, and what that means."""
+    if not shutil.which("plasma-apply-colorscheme"):
+        return ""
+    generated = target.parent / "colors.css"
+    if not generated.is_file() and f"@import" not in _read(target):
+        return ""
+    return (
+        f"{_GTK_BRIDGE} owns {target} and regenerates it from your Plasma "
+        f"colour scheme, so this will be overwritten the next time that "
+        f"changes; `--for kde` reaches GTK applications through that bridge "
+        f"instead, and lasts"
+    )
+
+
 def _desktop(app: str) -> object:
     """Place the scheme where the desktop already looks, and stop there.
 
@@ -419,14 +440,22 @@ def _desktop(app: str) -> object:
         # --dry-run is the moment to read them. A desktop enforces no contrast
         # requirement of its own, so nothing else will mention them.
         warnings = list(desktop.warnings(palette))
-        if app == "kde" and (accent := _kdeglobals_accent()):
-            warnings.append(accent)
+        if app == "kde":
+            if accent := _kdeglobals_accent():
+                warnings.append(accent)
+            reload = f"plasma-apply-colorscheme {name}"
+            description = "the scheme itself"
+        else:
+            if note := _gtk_bridge_note(target):
+                warnings.append(note)
+            reload = "restart GTK applications, or log out and back in"
+            description = "the colour overrides"
 
         return Plan(
             app=app,
-            steps=[Step(target, desktop.emit(palette), "the scheme itself",
-                        is_theme=True)],
-            reload=f"plasma-apply-colorscheme {name}",
+            steps=[Step(target, desktop.emit(palette), description,
+                        edits_existing=target.exists(), is_theme=True)],
+            reload=reload,
             warnings=warnings,
         )
 

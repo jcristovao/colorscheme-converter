@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-09-06" "cscx 0.17.0" "User Commands"
+.TH CSCX 1 "2026-09-06" "cscx 0.18.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -561,6 +561,58 @@ window chrome under buttons and titlebars, in steps far finer than an editor
 needs, so KDE has four of its own under
 .B [kde]
 in the mapping file.
+.TP
+.B gtk4
+.IR .css ,
+installed as
+.IR ~/.config/gtk\-4.0/gtk.css .
+GTK 4 and libadwaita, as CSS variables in a
+.B :root
+block \(em the form libadwaita 1.9 takes overrides in. Its older
+.B @define\-color
+spellings still parse but are documented as aliases that "don't pick up
+overridden colors", so writing them would be writing something inert. Aliased
+as
+.BR gtk ", " gnome ", " libadwaita " and " adwaita .
+.TP
+.B gtk3
+.IR .css ,
+installed as
+.IR ~/.config/gtk\-3.0/gtk.css .
+GTK 3, as
+.B @define\-color
+declarations. The names are the ones
+.I libgtk\-3.so
+actually declares, cross\-checked against the Breeze GTK 3 theme; a misspelled
+one does not error, it is parsed, stored and never read. GTK 3's Adwaita
+declares no link colour, so none is written. Aliased as
+.BR gtk\-3.0 .
+.PP
+Both GTK targets write colour
+.I overrides
+on top of whichever theme is in use, not a theme of their own \(em which is
+what makes them a short list rather than thousands of lines of widget CSS.
+Neither carries a light or dark preference: GTK 3 reads that from
+.IR settings.ini ,
+libadwaita from a GSetting, and cscx leaves both alone.
+.PP
+Two groups are deliberately not written, for the reason Plasma's bevels are
+not: libadwaita computes them. Its
+.I standalone
+colours are derived from the matching background by an Oklab transform, so
+overriding the background alone is the documented way to set an app\-wide
+accent. Its shades, borders and outlines are translucent, sized to work over
+any background, and an opaque palette colour there replaces a working overlay
+with a flat slab.
+.PP
+On a Plasma desktop the
+.BR kde\-gtk\-config (1)
+bridge already generates GTK colours from the KDE colour scheme and owns
+.IR gtk.css ,
+regenerating it whenever that scheme changes. Activation detects this and says
+so, since overrides written there are temporary;
+.B \-\-for kde
+reaches GTK applications through the bridge instead, and lasts.
 .SS The accent
 Plasma leans on a single accent \(em focus rings, hover, active text, the
 selection, the titlebar tint \(em and a terminal scheme has none. The scheme's

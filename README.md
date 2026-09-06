@@ -2,7 +2,7 @@
 
 Easily convert your favorite colour scheme to all your terminals, editors and command line tools / TUIs.
 
-You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, nine editors, and your KDE Plasma desktop.
+You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, nine editors, and your desktop — KDE Plasma or GTK.
 
 ```console
 $ cscx browse                                          # find, preview, apply
@@ -117,11 +117,15 @@ And the desktop around them. A terminal palette also writes a KDE Plasma colour 
 | Desktop | Output | Installs as |
 |---|---|---|
 | `kde` (`plasma`, `kde-plasma`) | `.colors` | `~/.local/share/color-schemes/NAME.colors` |
+| `gtk4` (`gtk`, `gnome`, `libadwaita`) | `.css` | `~/.config/gtk-4.0/gtk.css` |
+| `gtk3` (`gtk-3.0`) | `.css` | `~/.config/gtk-3.0/gtk.css` |
 
 ```console
 $ cscx convert kitty.conf --to kde,konsole -o ~/themes
 $ plasma-apply-colorscheme mine
 ```
+
+GTK is two targets rather than one, because GTK 3 and GTK 4 take overrides by different mechanisms and neither file does anything for the other's applications: `@define-color` for GTK 3, CSS variables for libadwaita. Both write colour *overrides* on top of whichever theme is in use, not a theme of their own — which is what makes it a short list rather than thousands of lines of widget CSS.
 
 The seven colour sets a `.colors` file carries turn out to be mostly the same base16 roles the editor themes use — red is `ForegroundNegative`, green is `ForegroundPositive`, blue is `ForegroundLink` — over a much finer surface ramp. What is genuinely new is the accent, which Plasma leans on and a terminal does not have, and a set of contrast checks calibrated so that Breeze passes them. Unlike the editors this one is also read, though mostly so the writer can be tested against itself. → [desktop colour schemes](docs/desktops.md)
 

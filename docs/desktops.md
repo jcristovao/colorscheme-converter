@@ -2,7 +2,7 @@
 
 [← README](../README.md) · [Formats](formats.md) · [Browsing](browsing.md) · [Applying](applying.md) · [Editors](editors.md) · [Mapping](mapping.md) · [Design](design.md)
 
-A terminal scheme can also be written as a **KDE Plasma** colour scheme, so the desktop around the terminal matches the terminal.
+A terminal scheme can also be written as a desktop colour scheme, so the desktop around the terminal matches the terminal. Two toolkits are supported: **KDE Plasma** and **GTK**.
 
 ```console
 $ cscx convert kitty.conf --to kde -o ~/.local/share/color-schemes/Mine.colors
@@ -12,6 +12,8 @@ $ plasma-apply-colorscheme Mine
 | Desktop | Output | Installs as |
 |---|---|---|
 | `kde` (`plasma`, `kde-plasma`) | `.colors` | `~/.local/share/color-schemes/NAME.colors` |
+| `gtk4` (`gtk`, `gnome`, `libadwaita`, `adwaita`) | `.css` | `~/.config/gtk-4.0/gtk.css` |
+| `gtk3` (`gtk-3.0`) | `.css` | `~/.config/gtk-3.0/gtk.css` |
 
 Pair it with konsole and the whole desktop agrees:
 
@@ -165,3 +167,67 @@ The parser earns its place another way. It is the round-trip oracle for the writ
 ## Known losses
 
 ANSI 0, 7 and 8–15 have no home in a `.colors` file, and neither do dim, the cursor, or the 256-colour indexed range. Of a full palette, KDE holds eight values.
+
+## GTK
+
+GTK is two targets, not one. GTK 3 and GTK 4 take colour overrides by different mechanisms, and neither file does anything for the other's applications — so `gtk4` will not theme GIMP, and `gtk3` will not theme a libadwaita application.
+
+```console
+$ cscx convert kitty.conf --to gtk3,gtk4 -o ./out
+$ cscx activate kitty.conf --for gtk4
+```
+
+The bare aliases — `gtk`, `gnome`, `libadwaita` — point at **GTK 4**, since that is the modern surface. GTK 3 has to be asked for by name.
+
+Both write colour *overrides* on top of whichever theme is in use, rather than a theme of their own. That is what makes this tractable: a real GTK theme is thousands of lines of widget CSS, while its colours are a short list.
+
+### GTK 3
+
+`@define-color` declarations, the mechanism Adwaita has used for a decade.
+
+The names are the ones `libgtk-3.so` actually declares, cross-checked against the Breeze GTK 3 theme, which defines the same core set. A misspelled name is worth guarding against carefully, because it does not error: GTK parses it, stores it, and nothing ever reads it. The test suite holds the extracted list and re-extracts it from the installed library where there is one, so the copy cannot go stale.
+
+One name people expect is missing. **GTK 3's Adwaita declares no link colour**, so `cscx` writes none rather than inventing a name that would be silently ignored.
+
+### GTK 4 and libadwaita
+
+CSS variables in a `:root` block, which is how libadwaita 1.9 takes overrides:
+
+```css
+:root {
+  --window-bg-color: #373633;
+  --view-bg-color:   #282828;
+  --accent-bg-color: #579092;
+}
+```
+
+libadwaita's older `@define-color` spellings still parse, but its documentation is explicit that they "are aliases of UI colors or otherwise derived from them" and "don't pick up overridden colors" — writing them would be writing something inert, so `cscx` does not.
+
+### What is deliberately not written
+
+Two groups, for the same reason KDE's bevels and disabled text are left alone: the toolkit computes them, and computing them better than it does is not on offer.
+
+**Standalone colours** — `--accent-color` and its siblings, used for coloured text on a neutral background — are derived by libadwaita from the matching background colour, through an Oklab transform that clamps lightness to 0.5 on light schemes and 0.85 on dark. Overriding the background alone is the documented way to set an app-wide accent; writing the standalone colour too fights that.
+
+**Shades, borders and outlines** — `--shade-color`, `--card-shade-color`, `--headerbar-border-color`, `--scrollbar-outline-color` — are translucent blacks and whites, sized to work over any background. A palette holds opaque colours, so putting one there replaces a working overlay with a flat slab. GTK 3's `borders` is the single exception, because Adwaita declares it as a real colour rather than an alpha.
+
+### If you are on KDE, you may not need this
+
+Plasma ships a GTK bridge, `kde-gtk-config`, which generates `~/.config/gtk-{3,4}.0/colors.css` from the **KDE colour scheme** and has `gtk.css` import it. Where that is installed, a scheme generated with `--to kde` already reaches GTK applications, and it does so durably.
+
+`cscx activate --for gtk3` or `--for gtk4` detects the bridge and says so, because the bridge rewrites `gtk.css` whenever the Plasma colour scheme changes — so overrides written there are temporary:
+
+```
+note:  kde-gtk-config owns ~/.config/gtk-4.0/gtk.css and regenerates it from
+       your Plasma colour scheme, so this will be overwritten the next time
+       that changes; `--for kde` reaches GTK applications through that bridge
+       instead, and lasts
+```
+
+The existing file is backed up first, as with any activation.
+
+### What is not covered
+
+**GNOME Shell.** Its theming is a full stylesheet rather than a colour list, so supporting it would mean forking and maintaining a shell theme — a different kind of artifact from everything else `cscx` writes — and it needs the User Themes extension to load at all.
+
+**Light and dark preference.** Neither file carries one: GTK 3 reads `gtk-application-prefer-dark-theme` from `settings.ini`, and libadwaita takes it from a GSetting. `cscx` writes colours and leaves both alone.

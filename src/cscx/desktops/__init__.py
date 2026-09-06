@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 from ..editors.roles import EditorPaletteError
 from ..palette import Palette
 from . import kde
+from .gtk import GTK3, GTK4
 
 __all__ = [
     "DESKTOPS",
@@ -55,7 +56,7 @@ class Desktop(Protocol):
     ) -> list[str]: ...
 
 
-_MODULES = (kde,)
+_MODULES = (kde, GTK3, GTK4)
 
 DESKTOPS: dict[str, Desktop] = {m.NAME: m for m in _MODULES}  # type: ignore[misc]
 
@@ -63,6 +64,15 @@ _ALIASES = {
     "plasma": "kde",
     "kde-plasma": "kde",
     "colors": "kde",
+    # GTK 4 is the modern surface, so the bare names point at it. GTK 3 has to
+    # be asked for, which is the right way round: a GTK 3 file does nothing for
+    # a libadwaita application.
+    "gtk": "gtk4",
+    "gnome": "gtk4",
+    "libadwaita": "gtk4",
+    "adwaita": "gtk4",
+    "gtk-4.0": "gtk4",
+    "gtk-3.0": "gtk3",
 }
 
 
