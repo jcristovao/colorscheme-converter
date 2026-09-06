@@ -73,7 +73,15 @@ Formats without inline comments annotate on the preceding line (ghostty, X resou
 $ cscx convert kitty.conf --to all -o ./out
 ```
 
-Writes one file per format into `./out`, named for the scheme with each format's own extension. Editor targets are included, and their filenames follow each editor's rules — Emacs only finds a theme named `NAME-theme.el`, and VS Code expects `NAME-color-theme.json`.
+Writes one file per format into `./out`, named for the scheme with each format's own extension. Editor and desktop targets are included, and their filenames follow each target's rules — Emacs only finds a theme named `NAME-theme.el`, and VS Code expects `NAME-color-theme.json`.
+
+Some targets genuinely want the same filename, though, and one directory cannot hold both. Where the outputs are identical — VS Code, Cursor and Antigravity produce the same document — cscx writes it once and says which targets share it. Where they would differ, it writes the first and reports the clash rather than overwriting:
+
+```
+cscx: cursor shares mine-color-theme.json with antigravity (identical)
+```
+
+A target whose required filename would collide with a different document is given a qualified name here instead, and keeps its bare one where the application actually looks. ghostwriter is the case in point: it finds a theme by its filename, so it installs as `NAME.json`, but Claude Code wants that name too and writes something else entirely — so under `--to all` it comes out as `NAME.ghostwriter.json`.
 
 ## As a library
 

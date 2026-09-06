@@ -49,6 +49,14 @@ Output is verified against each format's actual consumer where one exists:
 | `helix` | `tomllib`, plus scope/modifier names checked against the Helix reference |
 | `emacs` | parsed with an s-expression reader: balanced forms, escaped strings |
 | `vscode` family | `json`, plus every colour key checked against VS Code's own shipped themes |
+| `ghostwriter` | loaded in real ghostwriter, every one of its eleven colours checked on screen |
+| `kde` | read back with `kreadconfig6`, KDE's own KConfig parser; listed by `plasma-apply-colorscheme` after activation; sections and keys diffed against `BreezeDark.colors` |
+
+Two of those deserve a note, because the substitute for "does it load?" was different in each case.
+
+`kreadconfig6` is worth more than a JSON parse would be: it is the same code Plasma uses, so it confirms not just that the file is valid INI but that every group resolves the way KColorScheme will read it — including `[Colors:Header][Inactive]`, a nested group that is easy to spell in a way that parses and means nothing. The contrast gates were calibrated the same way, against the schemes KDE itself ships rather than against the standard in the abstract. → [desktop colour schemes](desktops.md#what-gets-checked)
+
+ghostwriter's loader ands its per-key results together and rejects the whole file if one is missing, so a theme that loads at all is a theme with all eleven keys present and parseable. The test suite re-implements that check; loading it in the real editor is what confirmed the *mapping* rather than the format — that headings take the heading colour and markup characters stay recessive.
 
 Helix, Emacs, ghostty, wezterm, Cursor and Antigravity are not installed here, so their output is validated structurally rather than by loading it, and the substitute is made explicit in each case:
 

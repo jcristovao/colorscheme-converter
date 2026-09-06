@@ -38,7 +38,11 @@ kitty:
 | `kitty`, `alacritty`, `foot`, `ghostty` | theme file + config edit |
 | `konsole` | scheme file; `--profile` also selects it |
 | `vim`, `neovim`, `helix`, `emacs` | theme file only |
+| `claude-code`, `ghostwriter` | theme file only |
 | `vscode`, `cursor`, `antigravity` | the wrapping extension, generated |
+| `kde` | scheme file; `plasma-apply-colorscheme` selects it |
+
+Everything below the first two rows gets a file placed where the application already looks, and nothing else. Choosing a theme stays a deliberate act — cscx will not edit your `init.lua`, your `ghostwriter.conf` or your `kdeglobals` to select one — so the command prints the line to run instead.
 
 ### The guarantees
 
