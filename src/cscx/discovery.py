@@ -271,6 +271,7 @@ _BINARIES = {
     "vscode": ("code", "code-oss", "codium"),
     "cursor": ("cursor",),
     "antigravity": ("antigravity",),
+    "ghostwriter": ("ghostwriter",),
 }
 
 

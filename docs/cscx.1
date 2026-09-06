@@ -1,4 +1,4 @@
-.TH CSCX 1 "2026-09-06" "cscx 0.16.0" "User Commands"
+.TH CSCX 1 "2026-09-06" "cscx 0.17.0" "User Commands"
 .
 .SH NAME
 cscx \- convert terminal color schemes between formats and into editor themes
@@ -497,6 +497,32 @@ for a light scheme. Drop that directory into
 or
 .I ~/.antigravity/extensions
 and restart the editor.
+.
+.TP
+.B ghostwriter
+.IR .json ,
+installed as
+.IR ~/.local/share/ghostwriter/themes/NAME.json .
+A distraction\-free Markdown editor, so it has no syntax groups: eleven
+colours, from which it derives seven more internally. The Markdown decisions
+in the group tables carry straight over \(em heading takes base0D, list
+markers base08, blockquotes base0C, link URLs base09 \(em so a ghostwriter
+theme and a neovim theme from one palette agree.
+.B markup
+covers every syntax character at once and takes base03, the one shade whose
+contrast against the background is searched for rather than hoped for.
+.B emphasis
+is the only key with no counterpart, since cscx renders bold and italic as
+attributes rather than colours; it takes base0E. Aliased as
+.BR gw .
+.PP
+Two details of the format matter. The theme is named by its filename \(em
+nothing inside the document records it \(em and every one of the eleven keys
+is required, because the loader rejects the whole file if any single one is
+missing or unparseable. cscx writes one colour scheme rather than the
+light/dark pair ghostwriter also accepts, since a palette has one polarity and
+claiming a dark scheme that was never supplied would invent one; ghostwriter
+responds by ignoring its own dark mode toggle, as its tooltip warns.
 .
 .SH DESKTOPS
 A terminal palette also writes a desktop colour scheme, so the desktop around
@@ -1195,5 +1221,6 @@ its cursor as a pair and cannot set one half alone.
 .BR hx (1),
 .BR emacs (1),
 .BR code (1),
+.BR ghostwriter (1),
 .BR plasma\-apply\-colorscheme (1),
 .BR kcolorschemeeditor (1)

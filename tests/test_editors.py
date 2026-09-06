@@ -25,6 +25,7 @@ OPTIONAL_ROLES = {"cursor", "cursor_text", "selection_bg", "selection_fg"}
 COMMENT_PREFIX = {
     "vim": '"', "neovim": "--", "helix": "#", "emacs": ";;",
     "vscode": None, "cursor": None, "antigravity": None, "claude-code": None,
+    "ghostwriter": None,
 }
 COMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if c)
 UNCOMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if not c)
@@ -244,10 +245,21 @@ def test_every_group_produces_something(gruvbox):
 
 # -- generated files ------------------------------------------------------
 
+#: Editors whose theme document carries no name of its own, and no polarity.
+#: ghostwriter is named by its filename -- ThemeRepository builds its list from
+#: the directory listing -- so there is no field for one, and a single-scheme
+#: document declares no light or dark either. Both are asserted directly in
+#: test_ghostwriter.py rather than left unchecked.
+NAMELESS = {"ghostwriter"}
+
+
 @pytest.mark.parametrize("editor", sorted(EDITORS))
 def test_theme_declares_its_name_and_background(gruvbox, editor):
     gruvbox.name = "Test Scheme"
     output = emit_theme(gruvbox, editor)
+    if editor in NAMELESS:
+        assert "Test Scheme" not in output and "test-scheme" not in output
+        return
     # vim, neovim, helix and emacs need a slug they can use as an identifier;
     # VS Code shows the name to the user and keeps it as written.
     assert "test-scheme" in output or "Test Scheme" in output
@@ -401,7 +413,13 @@ def test_a_hostile_scheme_name_cannot_break_the_output(gruvbox, editor):
         # No comments to break out of; it only has to stay valid JSON.
         import json
 
-        assert json.loads(output)["name"]
+        document = json.loads(output)
+        if editor in NAMELESS:
+            # Nothing for a hostile name to reach: there is no name field.
+            assert "name" not in document
+            assert not any(HOSTILE_NAME in str(v) for v in document.values())
+        else:
+            assert document["name"]
         return
     for line in output.splitlines():
         if line and not line.startswith(comment):

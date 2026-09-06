@@ -71,6 +71,28 @@ VS Code, Cursor and Antigravity load a theme from inside an extension rather tha
 
 Use `vs-light` for a light scheme. Drop the directory into `~/.vscode/extensions`, `~/.cursor/extensions` or `~/.antigravity/extensions` and restart.
 
+## ghostwriter
+
+[ghostwriter](https://ghostwriter.kde.org/) is a distraction-free Markdown editor, so it has no syntax groups in the usual sense — it has eleven colours, and derives seven more from them internally (`headingMarkup`, `inlineHtml`, `codeMarkup`, `blockquoteMarkup` and `divider` all follow `markup`; `codeText` follows `block`; `image` follows `link`).
+
+Most of those eleven were already decided. The Markdown conventions in `groups.py` that dress every other editor carry straight over, so a ghostwriter theme and a neovim theme generated from one palette agree about what a heading looks like:
+
+| ghostwriter | role | from |
+|---|---|---|
+| `heading` | `base0D` | `@markup.heading` |
+| `accent` | `base08` | `@markup.list` — it is bound to the list markers |
+| `block` | `base0C` | `@markup.quote`; code text inherits it |
+| `link` | `base09` | `@markup.link.url`; images inherit it |
+| `error` | `base08` | `@comment.error` |
+| `markup` | `base03` | every syntax character at once — the hashes, asterisks, backticks and rules |
+| `emphasis` | `base0E` | the one with no counterpart: cscx renders bold and italic as attributes and gives them no colour, while ghostwriter must have one |
+
+`markup` gets `base03` deliberately. It is the colour of every piece of Markdown punctuation on screen, so it has to stay readable, and `base03` is the one shade whose contrast against the background is searched for rather than hoped for. → [how the mapping works](#how-the-mapping-works)
+
+Two things about the format are worth knowing. **The theme is named by its filename** — nothing inside the document records it, and ghostwriter builds its theme list from the directory. And **every one of the eleven keys is required**: the loader ands its per-key results together and rejects the whole file with "Invalid or missing value(s)" if any single one is absent or unparseable.
+
+cscx writes a single colour scheme rather than the `{"light": ..., "dark": ...}` pair ghostwriter also accepts. A palette has one polarity, and claiming a dark scheme that was never supplied would mean inventing one. ghostwriter handles this by ignoring its own dark mode toggle, which its tooltip already warns about: *"If the current theme does not support a dark color scheme, then this option will have no effect."*
+
 ## Claude Code
 
 Claude Code is themable — six presets (`dark`, `light`, `dark-ansi`, `light-ansi`, and daltonized variants) plus custom themes read from `~/.claude/themes/<slug>.json` and selected with `"theme": "custom:<slug>"`.

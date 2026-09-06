@@ -2,7 +2,7 @@
 
 Easily convert your favorite colour scheme to all your terminals, editors and command line tools / TUIs.
 
-You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, eight editors, and your KDE Plasma desktop.
+You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, nine editors, and your KDE Plasma desktop.
 
 ```console
 $ cscx browse                                          # find, preview, apply
@@ -102,6 +102,7 @@ The same palette also produces a full editor theme.
 | `cursor` | `.json` | inside an extension |
 | `antigravity` (`ag`) | `.json` | inside an extension |
 | `claude-code` (`claude`, `cc`) | `.json` | `~/.claude/themes/NAME.json` |
+| `ghostwriter` (`gw`) | `.json` | `~/.local/share/ghostwriter/themes/NAME.json` |
 
 ```console
 $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua

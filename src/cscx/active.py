@@ -356,6 +356,36 @@ def _vscode(app: str) -> Active:
     return Active(app, "editor", None, source="not configured")
 
 
+def _ghostwriter() -> Active:
+    """Which theme ghostwriter is set to, from its own config.
+
+    Read rather than asked: ghostwriter has no query interface, and unlike vim
+    or neovim there are no conditionals or plugins in the way -- the setting is
+    a single key. Built-in themes resolve to no file, since they live in the
+    binary rather than the themes directory.
+    """
+    if not shutil.which("ghostwriter"):
+        return Active("ghostwriter", "editor", None, source="not installed")
+
+    config = _config_home() / "kde.org/ghostwriter.conf"
+    try:
+        text = config.read_text(errors="replace")
+    except OSError:
+        return Active("ghostwriter", "editor", None, source="not configured")
+
+    match = re.search(r"(?m)^theme\s*=\s*(.+?)\s*$", text)
+    if match is None:
+        return Active("ghostwriter", "editor", None, source=f"{config}, unset")
+
+    name = match.group(1)
+    path = _data_home() / f"ghostwriter/themes/{name}.json"
+    if path.is_file():
+        return Active("ghostwriter", "editor", name, path, str(config))
+    # Classic and Plainstraction are compiled in, so having no file is normal.
+    return Active("ghostwriter", "editor", name, None, str(config),
+                  note="a built-in theme, which has no file on disk")
+
+
 def _kde() -> Active:
     """Which colour scheme Plasma is using, from kdeglobals.
 
@@ -389,7 +419,8 @@ def _kde() -> Active:
 # -- registry -------------------------------------------------------------
 
 TERMINALS = ("kitty", "alacritty", "foot", "ghostty", "konsole", "xresources")
-EDITORS = ("vim", "neovim", "helix", "emacs", "vscode", "cursor", "antigravity")
+EDITORS = ("vim", "neovim", "helix", "emacs", "vscode", "cursor", "antigravity",
+           "ghostwriter")
 DESKTOPS = ("kde",)
 
 _DETECTORS = {
@@ -406,6 +437,7 @@ _DETECTORS = {
     "vscode": lambda: _vscode("vscode"),
     "cursor": lambda: _vscode("cursor"),
     "antigravity": lambda: _vscode("antigravity"),
+    "ghostwriter": _ghostwriter,
     "kde": _kde,
 }
 

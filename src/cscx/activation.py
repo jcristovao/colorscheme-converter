@@ -302,6 +302,8 @@ _RELOAD = {
     "helix": 'theme = "{name}" in ~/.config/helix/config.toml',
     "emacs": "(load-theme '{name} t)",
     "claude-code": '/theme, or "theme": "custom:{name}" in ~/.claude/settings.json',
+    "ghostwriter": "pick {name} in Themes, or theme={name} under [Style] in "
+                   "~/.config/kde.org/ghostwriter.conf",
 }
 
 
