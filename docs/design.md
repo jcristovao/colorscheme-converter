@@ -6,7 +6,7 @@ Why the thing is built the way it is. Nothing here is needed to use it.
 
 ## Hub and spoke
 
-Every format is parsed into a single `Palette`, and every format is emitted from it. That keeps the work linear — 9 parsers plus 9 emitters — instead of the 72 directed pairs a format-to-format converter would need.
+Every format is parsed into a single `Palette`, and every format is emitted from it. That keeps the work linear — 10 parsers plus 9 emitters — instead of the 72 directed pairs a format-to-format converter would need.
 
 Three kinds of spoke hang off that hub, and they are separate because their protocols genuinely differ, not because their subjects do:
 

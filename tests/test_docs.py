@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from cscx import __version__
+from cscx.desktops import DESKTOPS
 from cscx.editors import EDITORS
 from cscx.emitters import EMITTERS
 from cscx.formats import PARSERS
@@ -92,6 +93,12 @@ def test_every_format_is_documented(name):
 
 @pytest.mark.parametrize("name", sorted(EDITORS))
 def test_every_editor_is_documented(name):
+    assert name in MAN_PLAIN, f"{name} missing from the man page"
+    assert name in DOCS_TEXT, f"{name} missing from README.md and docs/"
+
+
+@pytest.mark.parametrize("name", sorted(DESKTOPS))
+def test_every_desktop_is_documented(name):
     assert name in MAN_PLAIN, f"{name} missing from the man page"
     assert name in DOCS_TEXT, f"{name} missing from README.md and docs/"
 
