@@ -12,7 +12,7 @@ $ cscx convert kitty.conf --to all -o ./out            # every format at once
 
 Existing tools go one way only: base16 and themer generate from a palette you author in *their* format, pywal generates from a wallpaper, colortty converts *to* alacritty. None of them read the scheme you already have.
 
-![The cscx browser: a list of schemes on the left, a live preview on the right](docs/img/browse.svg)
+![The cscx browser: a list of schemes on the left, a live preview on the right](https://cdn.jsdelivr.net/gh/jcristovao/colorscheme-converter@main/docs/img/browse.svg)
 
 ## Install
 
@@ -46,7 +46,7 @@ Plus `/` to filter (fuzzily — `b16sulph` finds `base16-atelier-sulphurpool`), 
 <details>
 <summary>Copying a scheme to another format (<code>c</code>)</summary>
 
-![The copy dialog: seventeen targets, and the destination each one writes to](docs/img/browse-copy.svg)
+![The copy dialog: seventeen targets, and the destination each one writes to](https://cdn.jsdelivr.net/gh/jcristovao/colorscheme-converter@main/docs/img/browse-copy.svg)
 
 Type to narrow the seventeen targets. The destination is filled in for you and points at the directory that application reads themes from — `~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim — because a theme written where the program never looks does nothing at all.
 
@@ -66,7 +66,7 @@ Type to narrow the seventeen targets. The destination is filled in for you and p
 
 So a machine where you would rather not install Textual loses the browsing, not the converting.
 
-![cscx preview: the same panels, without the browser](docs/img/preview.svg)
+![cscx preview: the same panels, without the browser](https://cdn.jsdelivr.net/gh/jcristovao/colorscheme-converter@main/docs/img/preview.svg)
 
 → [the browser in detail](docs/browsing.md)
 

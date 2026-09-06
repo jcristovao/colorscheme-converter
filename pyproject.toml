@@ -10,7 +10,30 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+authors = [{ name = "João Cristóvão", email = "jmacristovao@gmail.com" }]
+keywords = ["colorscheme", "color-scheme", "terminal", "theme", "converter", "base16", "tui"]
+# No `License ::` classifier: PyPI rejects those alongside the SPDX `license`
+# field above. Linux only, because discovery and activation are XDG-based —
+# conversion itself is portable, but nothing here knows about macOS or Windows
+# configuration paths.
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: Console",
+  "Intended Audience :: End Users/Desktop",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Terminals",
+  "Topic :: Utilities",
+]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/jcristovao/colorscheme-converter"
+Repository = "https://github.com/jcristovao/colorscheme-converter"
+Issues = "https://github.com/jcristovao/colorscheme-converter/issues"
 
 # The converter itself has no dependencies. The `browse` TUI needs Textual,
 # so it is opt-in: `pip install cscx[tui]`.
