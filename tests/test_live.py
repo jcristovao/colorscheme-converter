@@ -11,6 +11,12 @@ ESC = "\x1b"
 ST = f"{ESC}\\"
 
 
+@pytest.fixture(autouse=True)
+def outside_tmux(monkeypatch):
+    # Running the suite from inside tmux would otherwise wrap every sequence.
+    monkeypatch.delenv("TMUX", raising=False)
+
+
 @pytest.fixture
 def gruvbox():
     return parse_file(FIXTURES / "gruvbox.kitty.conf")

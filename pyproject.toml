@@ -53,4 +53,5 @@ packages = ["src/cscx"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+# "." so a bare `pytest` can import `tests.*`, as `python -m pytest` already can.
+pythonpath = ["src", "."]

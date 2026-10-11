@@ -3,7 +3,7 @@
 [← README](../README.md) · [Formats](formats.md) · [Editors](editors.md) · [Desktops](desktops.md) · [Design](design.md)
 
 ```console
-$ pip install -e '.[tui]'
+$ pip install -e '.[tui]' pytest pytest-asyncio
 $ python3 -m pytest
 ```
 
