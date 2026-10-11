@@ -1,8 +1,8 @@
 # cscx
 
-Easily convert your favorite colour scheme to all your terminals, editors and command line tools / TUIs.
+Turn the colour scheme you already use into one for every terminal, editor and command line tool / TUI you have.
 
-You already have the scheme you want. It's in kitty's config, or a konsole `.colorscheme`, or a neovim colorscheme you've used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, nine editors, and your desktop — KDE Plasma or GTK.
+You have the scheme you want. It lives in kitty's config, a konsole `.colorscheme`, or a neovim colorscheme you have used for years. `cscx` reads it and writes it out anywhere else: nine terminal formats in any direction, nine editors, and your desktop — KDE Plasma or GTK.
 
 ```console
 $ cscx browse                                          # find, preview, apply
@@ -48,7 +48,7 @@ Plus `/` to filter (fuzzily — `b16sulph` finds `base16-atelier-sulphurpool`), 
 
 ![The copy dialog: seventeen targets, and the destination each one writes to](https://cdn.jsdelivr.net/gh/jcristovao/colorscheme-converter@main/docs/img/browse-copy.svg)
 
-Type to narrow the seventeen targets. The destination is filled in for you and points at the directory that application reads themes from — `~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim — because a theme written where the program never looks does nothing at all.
+Type to narrow the seventeen targets. The destination is filled in for you and points at the directory that application reads themes from: `~/.claude/themes` for Claude Code, `~/.config/nvim/colors` for neovim. A theme written where the program never looks does nothing.
 
 </details>
 
@@ -125,7 +125,7 @@ $ cscx convert kitty.conf --to kde,konsole -o ~/themes
 $ plasma-apply-colorscheme mine
 ```
 
-GTK is two targets rather than one, because GTK 3 and GTK 4 take overrides by different mechanisms and neither file does anything for the other's applications: `@define-color` for GTK 3, CSS variables for libadwaita. Both write colour *overrides* on top of whichever theme is in use, not a theme of their own — which is what makes it a short list rather than thousands of lines of widget CSS.
+GTK is two targets rather than one, because GTK 3 and GTK 4 take overrides by different mechanisms and neither file does anything for the other's applications: `@define-color` for GTK 3, CSS variables for libadwaita. Both write colour *overrides* on top of whichever theme is in use, not a theme of their own. That is what keeps the list short rather than thousands of lines of widget CSS.
 
 The seven colour sets a `.colors` file carries turn out to be mostly the same base16 roles the editor themes use — red is `ForegroundNegative`, green is `ForegroundPositive`, blue is `ForegroundLink` — over a much finer surface ramp. What is genuinely new is the accent, which Plasma leans on and a terminal does not have, and a set of contrast checks calibrated so that Breeze passes them. Unlike the editors this one is also read, though mostly so the writer can be tested against itself. → [desktop colour schemes](docs/desktops.md)
 
