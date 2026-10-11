@@ -754,6 +754,8 @@ async def test_copying_to_claude_code_writes_a_theme_claude_code_would_load(tmp_
 async def test_the_copy_destination_is_shown_tilde_abbreviated(tmp_path, monkeypatch):
     """The field is a fixed width; `/home/somebody` is a prefix every row shares."""
     monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
     app = make_app()
     async with app.run_test(size=(120, 40)) as pilot:
         await pilot.pause()

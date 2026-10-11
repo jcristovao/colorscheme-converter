@@ -483,7 +483,7 @@ def detect(
 
 def _worth_showing(entry: Active) -> bool:
     """Hide applications that simply are not here."""
-    absent = ("not installed", "not configured", "no ")
+    absent = ("not installed", "xrdb not installed", "not configured", "no ")
     return entry.name is not None or not entry.source.startswith(absent)
 
 
