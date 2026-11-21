@@ -40,7 +40,6 @@ emit for them and no way to override them.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 
 from .._text import single_line
 from ..color import Color, contrast_ratio, is_dark, luminance, mix
@@ -54,7 +53,6 @@ from ._common import (
     TEXT_CONTRAST,
     Accent as _Accent,
     accent_foreground,
-    contrasting,
     make_visible as _usable,
     pick_accent as _accent,
     ramp,

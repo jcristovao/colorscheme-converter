@@ -15,7 +15,6 @@ from __future__ import annotations
 
 from ..palette import Palette
 from . import vscode
-from .roles import CONTRAST_TARGET
 
 __all__ = ["CURSOR", "ANTIGRAVITY"]
 

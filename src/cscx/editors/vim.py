@@ -11,7 +11,7 @@ from __future__ import annotations
 from ..palette import Palette
 from ._common import header_lines, resolve_group, slug
 from .groups import CORE
-from .roles import CONTRAST_TARGET, Roles, derive
+from .roles import derive
 
 NAME = "vim"
 EXTENSION = ".vim"

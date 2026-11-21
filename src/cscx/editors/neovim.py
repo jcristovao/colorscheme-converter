@@ -15,7 +15,7 @@ from __future__ import annotations
 from ..palette import Palette
 from ._common import header_lines, resolve_group, slug
 from .groups import CORE, DIAGNOSTICS, LSP_LINKS, NEOVIM_UI, TREESITTER
-from .roles import CONTRAST_TARGET, derive
+from .roles import derive
 
 NAME = "neovim"
 EXTENSION = ".lua"

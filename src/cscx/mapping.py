@@ -325,4 +325,4 @@ def dump(mapping: Mapping | None = None) -> str:
 
 
 def _toml(value: int | str) -> str:
-    return str(value) if isinstance(value, int) else f'"{value}"' 
+    return str(value) if isinstance(value, int) else f'"{value}"'

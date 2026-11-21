@@ -250,8 +250,8 @@ def test_unknown_application_is_rejected():
 
 def test_a_resolved_scheme_can_be_parsed(home):
     """The point of resolving to a file: the colours can actually be shown."""
-    theme = write(home / ".config/kitty/themes/mine.conf",
-                  (FIXTURES / "gruvbox.kitty.conf").read_text())
+    write(home / ".config/kitty/themes/mine.conf",
+          (FIXTURES / "gruvbox.kitty.conf").read_text())
     write(home / ".config/kitty/kitty.conf", "include themes/mine.conf\n")
 
     entry = detect_one("kitty")[0]

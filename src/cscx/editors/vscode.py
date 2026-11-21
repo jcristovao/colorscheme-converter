@@ -17,7 +17,7 @@ from .._text import single_line
 from ..palette import ANSI_NAMES, Palette
 from ._common import slug
 from .groups import VSCODE_TOKENS, VSCODE_WORKBENCH
-from .roles import CONTRAST_TARGET, Roles, derive
+from .roles import Roles, derive
 
 NAME = "vscode"
 EXTENSION = ".json"

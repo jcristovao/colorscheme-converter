@@ -28,7 +28,6 @@ from .._text import single_line
 from ..color import is_dark
 from ..palette import ANSI_NAMES, Palette
 from ._common import slug
-from .roles import CONTRAST_TARGET
 
 NAME = "claude-code"
 EXTENSION = ".json"

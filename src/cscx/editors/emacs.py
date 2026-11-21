@@ -14,7 +14,7 @@ from .._text import elisp_string
 from ..palette import Palette
 from ._common import header_lines, resolve_group, slug
 from .groups import EMACS
-from .roles import CONTRAST_TARGET, derive
+from .roles import derive
 
 NAME = "emacs"
 EXTENSION = ".el"

@@ -40,7 +40,7 @@ from dataclasses import dataclass
 
 from .._text import single_line
 from ..color import Color, contrast_ratio, mix
-from ..editors.roles import Roles, derive
+from ..editors.roles import derive
 from ..mapping import Mapping, load as load_mapping
 from ..palette import Palette
 from ._common import (

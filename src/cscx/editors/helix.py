@@ -17,7 +17,7 @@ from __future__ import annotations
 from ..palette import Palette
 from ._common import header_lines, slug
 from .groups import HELIX, Group
-from .roles import CONTRAST_TARGET, Roles, derive
+from .roles import Roles, derive
 
 NAME = "helix"
 EXTENSION = ".toml"

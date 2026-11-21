@@ -40,6 +40,11 @@ Issues = "https://github.com/jcristovao/colorscheme-converter/issues"
 [project.optional-dependencies]
 tui = ["textual>=0.60"]
 
+# `uv run pytest` (or `pip install --group dev`) gets everything the suite
+# needs, TUI included: without Textual, tests/test_tui.py silently skips.
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "textual>=0.60", "ruff"]
+
 [project.scripts]
 cscx = "cscx.cli:main"
 
@@ -55,3 +60,11 @@ packages = ["src/cscx"]
 testpaths = ["tests"]
 # "." so a bare `pytest` can import `tests.*`, as `python -m pytest` already can.
 pythonpath = ["src", "."]
+asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff]
+target-version = "py311"
+
+[tool.ruff.lint]
+# Pyflakes and the pycodestyle errors that are bugs rather than style.
+select = ["E4", "E7", "E9", "F", "W"]

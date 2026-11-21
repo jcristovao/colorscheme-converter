@@ -11,7 +11,6 @@ import pytest
 from cscx import __version__
 from cscx.desktops import DESKTOPS
 from cscx.editors import EDITORS
-from cscx.emitters import EMITTERS
 from cscx.formats import PARSERS
 
 ROOT = Path(__file__).resolve().parent.parent

@@ -240,7 +240,7 @@ def _accents(palette, slots, provenance, terminal_exact, mapping) -> None:
     # base09 (constants, numbers) wants orange, and base0F (deprecated) brown.
     # No terminal slot holds either, so exact mode borrows the bright variants
     # and derived mode blends the red and yellow that bracket them.
-    for role, exact_slot in (("base09", 9), ("base0F", 13)):
+    for role in ("base09", "base0F"):
         if (chosen := mapping.accent(role, None)) is not None:
             slots[role] = palette.ansi[chosen]
             provenance[role] = f"color{chosen}"

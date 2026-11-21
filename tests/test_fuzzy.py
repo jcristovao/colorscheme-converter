@@ -1,6 +1,5 @@
 """Fuzzy matching for the scheme filter."""
 
-import pytest
 
 from cscx.fuzzy import matches, rank, score
 

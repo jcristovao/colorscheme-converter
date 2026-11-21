@@ -1,8 +1,6 @@
 """Reading neovim colorschemes back into palettes."""
 
-import json
 import shutil
-from pathlib import Path
 
 import pytest
 
