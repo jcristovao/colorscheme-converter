@@ -322,6 +322,76 @@ async def test_installed_applications_are_offered_first(tmp_path, monkeypatch):
             assert offered[0] in installed
 
 
+def _register_vaults(home, *names):
+    """Sandboxed vaults, listed in a sandboxed copy of Obsidian's registry."""
+    import json
+
+    vaults = []
+    for name in names:
+        vault = home / "notes" / name
+        (vault / ".obsidian").mkdir(parents=True)
+        vaults.append(vault)
+    registry = home / ".config/obsidian/obsidian.json"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(json.dumps({
+        "vaults": {str(i): {"path": str(v), "ts": i} for i, v in enumerate(vaults)}
+    }))
+    return vaults
+
+
+@pytest.mark.asyncio
+async def test_obsidian_is_offered_once_per_vault(tmp_path, monkeypatch):
+    """A theme goes into a vault, so which vault is the thing to choose."""
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+    work, personal = _register_vaults(tmp_path, "Work", "Personal")
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+        screen = app.screen
+        rows = [i for i, name in enumerate(screen._apps) if name == "obsidian"]
+        assert {screen._vaults[i] for i in rows} == {work, personal}
+        assert {screen._label(i).split("  ·  ")[1].split()[0] for i in rows} \
+            == {"Work", "Personal"}
+
+        choice = next(i for i in rows if screen._vaults[i] == personal)
+        screen.query_one("#activate-apps").highlighted = choice
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.activated == ["obsidian"]
+        assert list((personal / ".obsidian/themes").glob("*/theme.css"))
+        assert not (work / ".obsidian/themes").exists()
+
+
+@pytest.mark.asyncio
+async def test_obsidian_without_a_vault_explains_itself(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("XDG_CONFIG_HOME", raising=False)
+    monkeypatch.delenv("XDG_DATA_HOME", raising=False)
+
+    app = make_app()
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.press("A")
+        await pilot.pause()
+
+        screen = app.screen
+        assert screen._apps.count("obsidian") == 1
+        screen.query_one("#activate-apps").highlighted = screen._apps.index("obsidian")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.activated == []
+
+
 # -- "in use" markers -----------------------------------------------------
 
 

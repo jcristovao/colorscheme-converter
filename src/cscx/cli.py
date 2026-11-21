@@ -9,7 +9,6 @@ from pathlib import Path
 
 from . import __version__
 from .editors import (
-    CONTRAST_TARGET,
     EDITORS,
     EditorPaletteError,
     get_editor,
@@ -129,6 +128,10 @@ def build_parser() -> argparse.ArgumentParser:
     activate.add_argument(
         "--profile", type=Path,
         help="konsole only: the .profile to point at the scheme",
+    )
+    activate.add_argument(
+        "--vault", type=Path,
+        help="obsidian only: the vault to install the theme into",
     )
     activate.add_argument(
         "-n", "--dry-run", action="store_true",
@@ -294,7 +297,7 @@ def _cmd_nvim_themes(args: argparse.Namespace) -> int:
             return 0
 
         target = args.output or cache_dir()
-        print(f"cscx: asking neovim to load its colorschemes (this takes a moment)",
+        print("cscx: asking neovim to load its colorschemes (this takes a moment)",
               file=sys.stderr)
         written = export(target, args.only or None)
     except NvimUnavailable as exc:
@@ -346,7 +349,8 @@ def _cmd_activate(args: argparse.Namespace) -> int:
 
     try:
         palette = parse_file(args.path, format=args.source_format)
-        proposed = plan(palette, args.app, name=args.name, profile=args.profile)
+        proposed = plan(palette, args.app, name=args.name, profile=args.profile,
+                        vault=args.vault)
     except (OSError, ValueError, KeyError, ActivationError) as exc:
         print(f"cscx: {exc}", file=sys.stderr)
         return 1

@@ -25,7 +25,7 @@ OPTIONAL_ROLES = {"cursor", "cursor_text", "selection_bg", "selection_fg"}
 COMMENT_PREFIX = {
     "vim": '"', "neovim": "--", "helix": "#", "emacs": ";;",
     "vscode": None, "cursor": None, "antigravity": None, "claude-code": None,
-    "ghostwriter": None,
+    "ghostwriter": None, "obsidian": "/*",
 }
 COMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if c)
 UNCOMMENTED = sorted(e for e, c in COMMENT_PREFIX.items() if not c)
@@ -573,11 +573,11 @@ def test_helix_modifiers_and_underline_styles_are_valid(helix_theme):
 
 def test_helix_palette_comes_last(gruvbox):
     """A bare key after `[palette]` would be swallowed into that table."""
-    lines = [l for l in emit_theme(gruvbox, "helix").splitlines()
-             if l and not l.startswith("#")]
+    lines = [line for line in emit_theme(gruvbox, "helix").splitlines()
+             if line and not line.startswith("#")]
     header = lines.index("[palette]")
-    assert all("=" in l for l in lines[header + 1:])
-    assert all(l.startswith('"') for l in lines[:header])
+    assert all("=" in line for line in lines[header + 1:])
+    assert all(line.startswith('"') for line in lines[:header])
 
 
 def test_helix_uses_the_shorthand_for_foreground_only_scopes(gruvbox):

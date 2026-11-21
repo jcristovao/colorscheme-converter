@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 from ..palette import Palette
-from . import claude_code, emacs, ghostwriter, helix, neovim, vim, vscode
+from . import claude_code, emacs, ghostwriter, helix, neovim, obsidian, vim, vscode
 from .vscode_forks import ANTIGRAVITY, CURSOR
 from .roles import CONTRAST_TARGET, EditorPaletteError, derive
 
@@ -48,7 +48,7 @@ class Editor(Protocol):
 
 
 _MODULES = (vim, neovim, helix, emacs, vscode, CURSOR, ANTIGRAVITY,
-            claude_code, ghostwriter)
+            claude_code, ghostwriter, obsidian)
 
 EDITORS: dict[str, Editor] = {m.NAME: m for m in _MODULES}  # type: ignore[misc]
 
@@ -61,6 +61,7 @@ _ALIASES = {
     "claude": "claude-code",
     "cc": "claude-code",
     "gw": "ghostwriter",
+    "obs": "obsidian",
     "vs-code": "vscode",
     "visual-studio-code": "vscode",
 }

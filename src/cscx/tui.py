@@ -25,7 +25,7 @@ from textual.widgets import Footer, Header, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
 from . import __version__, live
-from .active import detect as detect_active
+from .active import detect as detect_active, obsidian_vaults
 from .activation import ACTIVATABLE, ActivationError, apply_plan, plan
 from .fuzzy import rank
 from .discovery import (
@@ -244,7 +244,7 @@ class CopyToScreen(ModalScreen[tuple[Target, Path] | None]):
         self.dismiss(None)
 
 
-class ActivateScreen(ModalScreen[str | None]):
+class ActivateScreen(ModalScreen[tuple[str, Path | None] | None]):
     """Choose an application, see exactly what would change, then confirm."""
 
     BINDINGS = [Binding("escape", "dismiss_screen", "Cancel")]
@@ -252,20 +252,31 @@ class ActivateScreen(ModalScreen[str | None]):
     def __init__(self, palette: Palette, installed: set[str]) -> None:
         super().__init__()
         self._palette = palette
+        self._installed = installed
         # Applications actually present come first: activating for something
         # that is not installed is legal but rarely what anyone means.
-        self._apps = sorted(ACTIVATABLE, key=lambda a: (a not in installed, a))
-        self._installed = installed
+        #
+        # Obsidian is offered once per vault it knows about, because a theme
+        # goes into a vault and choosing which is the whole decision. With no
+        # vault registered it stays a single row, whose plan says why not.
+        self._apps: list[str] = []
+        self._vaults: list[Path | None] = []
+        vaults = obsidian_vaults()
+        for app in sorted(ACTIVATABLE, key=lambda a: (a not in installed, a)):
+            for vault in (vaults if app == "obsidian" and vaults else [None]):
+                self._apps.append(app)
+                self._vaults.append(vault)
+
+    def _label(self, index: int) -> str:
+        app, vault = self._apps[index], self._vaults[index]
+        label = app if vault is None else f"{app}  ·  {vault.name}"
+        return label if app in self._installed else f"{label}   (not installed)"
 
     def compose(self) -> ComposeResult:
         with Vertical(id="activate-dialog"):
             yield Label("Activate for:", id="activate-title")
             yield OptionList(
-                *(
-                    Option(f"{app}{'' if app in self._installed else '   (not installed)'}",
-                           id=app)
-                    for app in self._apps
-                ),
+                *(Option(self._label(index)) for index in range(len(self._apps))),
                 id="activate-apps",
             )
             yield Static("", id="activate-plan")
@@ -273,22 +284,25 @@ class ActivateScreen(ModalScreen[str | None]):
 
     def on_mount(self) -> None:
         self.query_one("#activate-apps", OptionList).focus()
-        self._show_plan(self._apps[0])
+        self._show_plan(0)
 
-    def _show_plan(self, app: str) -> None:
+    def _show_plan(self, index: int) -> None:
         try:
-            described = plan(self._palette, app).describe()
+            described = plan(
+                self._palette, self._apps[index], vault=self._vaults[index]
+            ).describe()
         except ActivationError as exc:
             described = str(exc)
         self.query_one("#activate-plan", Static).update(described)
 
     @on(OptionList.OptionHighlighted, "#activate-apps")
     def _highlight(self, event: OptionList.OptionHighlighted) -> None:
-        self._show_plan(self._apps[event.option_index])
+        self._show_plan(event.option_index)
 
     @on(OptionList.OptionSelected, "#activate-apps")
     def _select(self, event: OptionList.OptionSelected) -> None:
-        self.dismiss(self._apps[event.option_index])
+        index = event.option_index
+        self.dismiss((self._apps[index], self._vaults[index]))
 
     def action_dismiss_screen(self) -> None:
         self.dismiss(None)
@@ -748,14 +762,17 @@ class BrowseApp(App[None]):
             return
         self.push_screen(
             ActivateScreen(palette, installed_applications()),
-            lambda app: self._activate(app, palette),
+            lambda choice: self._activate(choice, palette),
         )
 
-    def _activate(self, app: str | None, palette: Palette) -> None:
-        if app is None:
+    def _activate(
+        self, choice: tuple[str, Path | None] | None, palette: Palette
+    ) -> None:
+        if choice is None:
             return
+        app, vault = choice
         try:
-            proposed = plan(palette, app)
+            proposed = plan(palette, app, vault=vault)
             backups = apply_plan(proposed)
         except (ActivationError, OSError) as exc:
             self.notify(str(exc), title=f"{app} unchanged", severity="error")

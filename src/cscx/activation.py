@@ -23,6 +23,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 
+from .active import OBSIDIAN_BASE_SCHEMES, obsidian_appearance, obsidian_vaults
 from .desktops import DESKTOPS, get_desktop
 from .editors import EDITORS, get_editor
 from .editors._common import slug
@@ -369,6 +370,70 @@ def _vscode_extension(palette: Palette, name: str, app: str) -> Plan:
     )
 
 
+def _obsidian(palette: Palette, name: str, vault: Path | None = None) -> Plan:
+    """Place a theme in one vault: the stylesheet, and the manifest naming it.
+
+    The vault is never guessed. Obsidian keeps themes per vault and has no
+    user-wide directory, so every default would be wrong for somebody -- and
+    a theme dropped into the wrong vault is a change to a folder of notes
+    nobody asked to have changed.
+    """
+    from .color import is_dark
+    from .editors import obsidian
+
+    if vault is None:
+        known = obsidian_vaults()
+        listed = (
+            "; Obsidian knows of " + ", ".join(str(path) for path in known)
+            if known else ""
+        )
+        raise ActivationError(
+            f"an Obsidian theme is installed into one vault, so name it with "
+            f"--vault{listed}"
+        )
+
+    vault = vault.expanduser()
+    settings = vault / ".obsidian"
+    if not settings.is_dir():
+        raise ActivationError(
+            f"{vault} is not an Obsidian vault: it has no .obsidian directory"
+        )
+
+    # The directory's name and the manifest's must match exactly, and the
+    # header inside the stylesheet should agree with both, so `--name` renames
+    # the palette rather than only the path.
+    if slug(palette.name) != name:
+        palette = replace(palette, name=name)
+    root = settings / "themes" / name
+    polarity = (
+        "dark" if palette.background is None or is_dark(palette.background)
+        else "light"
+    )
+
+    warnings = []
+    current = OBSIDIAN_BASE_SCHEMES.get(obsidian_appearance(vault).get("theme"))
+    if current is not None and current != polarity:
+        warnings.append(
+            f"this vault's base colour scheme is {current} and the theme is "
+            f"{polarity}, so it will change nothing until that is switched"
+        )
+
+    manifest, stylesheet = root / "manifest.json", root / "theme.css"
+    return Plan(
+        app="obsidian",
+        steps=[
+            Step(manifest, obsidian.manifest(name), "the theme manifest",
+                 edits_existing=manifest.exists()),
+            Step(stylesheet, obsidian.emit(palette),
+                 "the theme itself", edits_existing=stylesheet.exists(),
+                 is_theme=True),
+        ],
+        reload=f"Settings > Appearance: pick {name} under Themes, with the "
+               f"base colour scheme set to {polarity.capitalize()}",
+        warnings=warnings,
+    )
+
+
 # -- desktop activators ---------------------------------------------------
 
 
@@ -406,7 +471,7 @@ def _gtk_bridge_note(target: Path) -> str:
     if not shutil.which("plasma-apply-colorscheme"):
         return ""
     generated = target.parent / "colors.css"
-    if not generated.is_file() and f"@import" not in _read(target):
+    if not generated.is_file() and "@import" not in _read(target):
         return ""
     return (
         f"{_GTK_BRIDGE} owns {target} and regenerates it from your Plasma "
@@ -469,6 +534,8 @@ ACTIVATABLE: dict[str, object] = {
     "ghostty": _ghostty,
     "konsole": _konsole,
     **{app: _editor(app) for app in sorted(EDITORS)},
+    # Not the generic editor path: a theme here is two files, in a vault.
+    "obsidian": _obsidian,
     **{app: _desktop(app) for app in sorted(DESKTOPS)},
 }
 
@@ -479,6 +546,7 @@ def plan(
     *,
     name: str | None = None,
     profile: Path | None = None,
+    vault: Path | None = None,
 ) -> Plan:
     """Work out what activating `palette` for `app` would change."""
     if app not in ACTIVATABLE:
@@ -489,6 +557,8 @@ def plan(
     builder = ACTIVATABLE[app]
     if app == "konsole":
         return builder(palette, theme_name, profile)      # type: ignore[operator]
+    if app == "obsidian":
+        return builder(palette, theme_name, vault)        # type: ignore[operator]
     return builder(palette, theme_name)                   # type: ignore[operator]
 
 

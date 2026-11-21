@@ -29,7 +29,8 @@ from pathlib import Path
 from ._text import strip_jsonc
 from .palette import Palette
 
-__all__ = ["Active", "detect", "detect_one", "TERMINALS", "EDITORS", "DESKTOPS"]
+__all__ = ["Active", "detect", "detect_one", "obsidian_vaults",
+           "TERMINALS", "EDITORS", "DESKTOPS"]
 
 #: How long to let an editor start up before giving up on it.
 TIMEOUT = 20
@@ -386,6 +387,83 @@ def _ghostwriter() -> Active:
                   note="a built-in theme, which has no file on disk")
 
 
+def obsidian_vaults() -> list[Path]:
+    """The vaults Obsidian knows about, most recently opened first.
+
+    Read from Obsidian's own registry, `obsidian.json`, which is the only
+    place a vault is recorded: a vault is just a directory, and nothing about
+    its location is conventional. The Flatpak keeps the same file under its
+    own sandboxed config directory, so both are read. A vault whose directory
+    has since been moved or deleted is left out, because there is nothing to
+    install into.
+    """
+    registries = (
+        _config_home() / "obsidian/obsidian.json",
+        Path.home() / ".var/app/md.obsidian.Obsidian/config/obsidian/obsidian.json",
+    )
+    found: dict[Path, tuple[bool, float]] = {}
+    for registry in registries:
+        try:
+            entries = json.loads(registry.read_text()).get("vaults", {})
+        except (OSError, ValueError, AttributeError):
+            continue
+        if not isinstance(entries, dict):
+            continue
+        for entry in entries.values():
+            if not isinstance(entry, dict) or not isinstance(entry.get("path"), str):
+                continue
+            path = Path(entry["path"])
+            stamp = entry.get("ts")
+            if path.is_dir() and path not in found:
+                found[path] = (
+                    bool(entry.get("open")),
+                    float(stamp) if isinstance(stamp, (int, float)) else 0.0,
+                )
+    return sorted(found, key=lambda path: found[path], reverse=True)
+
+
+#: What `appearance.json` calls Obsidian's two base colour schemes.
+OBSIDIAN_BASE_SCHEMES = {"obsidian": "dark", "moonstone": "light"}
+
+
+def obsidian_appearance(vault: Path) -> dict:
+    """A vault's `appearance.json`, or nothing if it is absent or unreadable."""
+    try:
+        document = json.loads((vault / ".obsidian/appearance.json").read_text())
+    except (OSError, ValueError):
+        return {}
+    return document if isinstance(document, dict) else {}
+
+
+def _obsidian() -> list[Active]:
+    """Which theme each vault is set to, from that vault's own settings.
+
+    One answer per vault, the way konsole answers per profile: Obsidian has no
+    global theme. An unset `cssTheme` is the built-in default, which is a
+    real answer and has no file.
+    """
+    vaults = obsidian_vaults()
+    if not vaults:
+        installed = shutil.which("obsidian") or shutil.which("md.obsidian.Obsidian")
+        absent = "not configured" if installed else "not installed"
+        return [Active("obsidian", "editor", None, source=absent)]
+
+    results = []
+    for vault in vaults:
+        settings = vault / ".obsidian/appearance.json"
+        name = obsidian_appearance(vault).get("cssTheme") or None
+        if not isinstance(name, str):
+            results.append(Active("obsidian", "editor", None,
+                                  source=f"no theme set in {vault.name}"))
+            continue
+        path = vault / ".obsidian/themes" / name / "theme.css"
+        results.append(Active(
+            "obsidian", "editor", name, path if path.is_file() else None,
+            str(settings), note=f"vault {vault.name}",
+        ))
+    return results
+
+
 def _kde() -> Active:
     """Which colour scheme Plasma is using, from kdeglobals.
 
@@ -420,7 +498,7 @@ def _kde() -> Active:
 
 TERMINALS = ("kitty", "alacritty", "foot", "ghostty", "konsole", "xresources")
 EDITORS = ("vim", "neovim", "helix", "emacs", "vscode", "cursor", "antigravity",
-           "ghostwriter")
+           "ghostwriter", "obsidian")
 DESKTOPS = ("kde",)
 
 _DETECTORS = {
@@ -438,6 +516,7 @@ _DETECTORS = {
     "cursor": lambda: _vscode("cursor"),
     "antigravity": lambda: _vscode("antigravity"),
     "ghostwriter": _ghostwriter,
+    "obsidian": _obsidian,
     "kde": _kde,
 }
 

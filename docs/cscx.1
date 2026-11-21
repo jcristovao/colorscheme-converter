@@ -40,6 +40,8 @@ cscx \- convert terminal color schemes between formats and into editor themes
 .IR NAME ]
 .RB [ \-\-profile
 .IR PATH ]
+.RB [ \-\-vault
+.IR PATH ]
 .RB [ \-\-no\-backup ]
 .RB [ \-\-no\-validate ]
 .br
@@ -243,6 +245,12 @@ to point at the installed scheme. Without it the scheme is installed but not
 selected, and
 .B cscx
 says so.
+.TP
+.BI \-\-vault " PATH"
+obsidian only, and required for it. The vault to install the theme into.
+Obsidian keeps themes per vault and has no user\-wide directory, so no vault
+is ever guessed; without the option the command fails and lists the vaults
+Obsidian has registered.
 .TP
 .B \-\-no\-backup
 Do not copy existing files aside before editing them. Rolling back a rejected
@@ -523,6 +531,43 @@ missing or unparseable. cscx writes one colour scheme rather than the
 light/dark pair ghostwriter also accepts, since a palette has one polarity and
 claiming a dark scheme that was never supplied would invent one; ghostwriter
 responds by ignoring its own dark mode toggle, as its tooltip warns.
+.
+.TP
+.B obsidian
+.IR .css ,
+installed as
+.IR VAULT/.obsidian/themes/NAME/theme.css .
+An Obsidian theme is a stylesheet of custom properties, and Obsidian derives
+several hundred semantic variables from a dozen foundation colours. cscx sets
+the foundations \(em the twelve\-step neutral scale, the eight named hues and
+the accent \(em and lets Obsidian derive the rest. The scale runs from base00
+to base05 with base01, base02, base03 and base04 placed on the steps Obsidian
+uses for form fields, hovered borders, faint text and muted text; faint text
+is what Obsidian draws code comments and Markdown syntax characters in, so it
+takes base03, the one shade whose contrast is searched for. Pink, which base16
+has no word for, is blended from base08 and base0E. The accent is base0D.
+Headings, list markers, blockquotes, links and code are then set to the same
+roles as in every other editor. Aliased as
+.BR obs .
+.PP
+Three details of the format matter. Themes are per vault, so
+.B activate
+needs
+.B \-\-vault
+and will not guess one. A theme is a directory holding the stylesheet and a
+.I manifest.json
+whose name must equal the directory's exactly;
+.B activate
+writes both, while
+.B convert
+writes only the stylesheet. And the stylesheet declares its polarity: its
+variables sit under
+.B .theme\-dark
+or
+.BR .theme\-light ,
+whichever the palette is, and apply only while the vault's base colour scheme
+matches. Activating into a vault set to the other one says so. The stylesheet
+also works unchanged as a CSS snippet.
 .
 .SH DESKTOPS
 A terminal palette also writes a desktop colour scheme, so the desktop around
@@ -833,6 +878,15 @@ you use; pass
 .B \-\-profile
 or pick the scheme in its settings.
 .PP
+.B obsidian
+writes a theme directory \(em the stylesheet and its manifest \(em into the
+vault named by
+.BR \-\-vault ,
+and leaves the vault's settings alone; the command prints where to select it.
+If the vault's base colour scheme is light and the theme is dark, or the
+reverse, it says so, since the theme would otherwise install and visibly do
+nothing.
+.PP
 .B kde
 places the scheme where Plasma looks and prints the
 .BR plasma\-apply\-colorscheme (1)
@@ -892,7 +946,8 @@ Some answers are genuinely ambiguous and are reported that way rather than
 guessed. konsole stores its scheme per profile, so a machine with several
 profiles has several answers, and unless
 .I konsolerc
-names a default there is no way to know which applies.
+names a default there is no way to know which applies. Obsidian has no
+global theme at all, so it answers once per registered vault.
 .PP
 In
 .B cscx browse
@@ -1274,5 +1329,6 @@ its cursor as a pair and cannot set one half alone.
 .BR emacs (1),
 .BR code (1),
 .BR ghostwriter (1),
+.BR obsidian (1),
 .BR plasma\-apply\-colorscheme (1),
 .BR kcolorschemeeditor (1)

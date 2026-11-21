@@ -93,6 +93,30 @@ Two things about the format are worth knowing. **The theme is named by its filen
 
 cscx writes a single colour scheme rather than the `{"light": ..., "dark": ...}` pair ghostwriter also accepts. A palette has one polarity, and claiming a dark scheme that was never supplied would mean inventing one. ghostwriter handles this by ignoring its own dark mode toggle, which its tooltip already warns about: *"If the current theme does not support a dark color scheme, then this option will have no effect."*
 
+## Obsidian
+
+An [Obsidian](https://obsidian.md/) theme is a stylesheet, and nearly all of a good one is custom properties. Obsidian's own stylesheet is built in two layers: a dozen *foundation* colours — a twelve-step neutral scale, eight named hues and an accent — and several hundred *semantic* variables defined in terms of them. `--background-secondary` is `--color-base-20`, `--text-muted` is `--color-base-70`, `--text-error` is `--color-red`. So cscx sets the foundations and lets Obsidian derive the rest, which is less to get wrong and what Obsidian's documentation asks themes to do.
+
+| Obsidian | role | why |
+|---|---|---|
+| `--color-base-00` | `base00` | the background |
+| `--color-base-25` | `base01` | form fields: the cursorline shade |
+| `--color-base-35` | `base02` | hovered borders: the statusline shade |
+| `--color-base-50` | `base03` | `--text-faint` |
+| `--color-base-70` | `base04` | `--text-muted` |
+| `--color-base-100` | `base05` | normal text |
+| `--color-red` … `--color-purple` | `base08` … `base0E` | the seven hues base16 has a word for |
+| `--color-pink` | `base08` + `base0E` | blended, the way orange is: base16 has no pink |
+| `--accent-h`, `-s`, `-l` | `base0D` | links, tags, checkboxes, the active tab |
+
+`--color-base-50` getting `base03` is the one that matters. Obsidian draws code comments, list markers and every Markdown syntax character in `--text-faint`, and `base03` is the one shade whose contrast against the background is searched for rather than hoped for. The seven steps in between are interpolated, spaced the way Obsidian's own default scale is. → [how the mapping works](#how-the-mapping-works)
+
+The semantic layer is touched only where Obsidian's default would contradict a decision already made for every other editor. Headings take `base0D`, list markers `base08`, blockquotes `base0C` and links `base09`, exactly as in `groups.py`; and code is recoloured, because Obsidian's defaults — functions yellow, keywords pink, operators red — are a different convention from base16's. Bold and italic are left alone: cscx gives them no colour anywhere, and Obsidian's default is to inherit.
+
+Three things about the format are worth knowing. **Themes are per vault** — there is no user-wide themes directory, so `cscx activate --for obsidian` needs `--vault` and will not guess one, though it lists the vaults Obsidian has registered. **A theme is a directory**, holding `theme.css` and a `manifest.json` whose `name` must equal the directory's name exactly; `activate` writes both, while `convert --to obsidian` writes only the stylesheet. And **the stylesheet declares its polarity**: variables under `.theme-dark` apply only while the vault's base colour scheme is dark. A palette has one polarity, so exactly one of the two is written, and activating a dark theme into a vault set to light says so rather than leaving you to wonder why nothing changed.
+
+The stylesheet is only custom properties, so it also works unchanged as a CSS snippet in `VAULT/.obsidian/snippets/`, layered over another theme. An accent colour picked in Obsidian's own settings still wins over the theme's, as it does for any theme.
+
 ## Claude Code
 
 Claude Code is themable — six presets (`dark`, `light`, `dark-ansi`, `light-ansi`, and daltonized variants) plus custom themes read from `~/.claude/themes/<slug>.json` and selected with `"theme": "custom:<slug>"`.

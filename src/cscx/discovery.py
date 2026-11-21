@@ -272,6 +272,7 @@ _BINARIES = {
     "cursor": ("cursor",),
     "antigravity": ("antigravity",),
     "ghostwriter": ("ghostwriter",),
+    "obsidian": ("obsidian", "md.obsidian.Obsidian"),
 }
 
 

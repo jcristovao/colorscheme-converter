@@ -39,6 +39,7 @@ kitty:
 | `konsole` | scheme file; `--profile` also selects it |
 | `vim`, `neovim`, `helix`, `emacs` | theme file only |
 | `claude-code`, `ghostwriter` | theme file only |
+| `obsidian` | theme directory in the vault named by `--vault` |
 | `vscode`, `cursor`, `antigravity` | the wrapping extension, generated |
 | `kde` | scheme file; `plasma-apply-colorscheme` selects it |
 
@@ -52,7 +53,7 @@ Everything below the first two rows gets a file placed where the application alr
 
 **The application gets a veto.** Where the format can be machine-checked, the result is validated by the real thing — alacritty's TOML is re-parsed, `foot --check-config` and kitty's own loader run when installed. If the app would reject it, every backup is restored, every created file removed, and the command fails having changed nothing. `--no-validate` skips this.
 
-**Editors never get their init file edited.** Choosing a colorscheme should stay a deliberate act, so cscx places the file and prints the one line to run (`:colorscheme gruvbox`). konsole installs the scheme but can't select it without knowing your profile, and says so rather than guessing.
+**Editors never get their init file edited.** Choosing a colorscheme should stay a deliberate act, so cscx places the file and prints the one line to run (`:colorscheme gruvbox`). konsole installs the scheme but can't select it without knowing your profile, and says so rather than guessing. Obsidian keeps themes per vault, so `--for obsidian` requires `--vault PATH` and refuses to pick one for you — a theme dropped into the wrong vault is a change to a folder of notes nobody asked to have changed. Run it without `--vault` and the error lists the vaults Obsidian knows about.
 
 ## What is each application using?
 

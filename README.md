@@ -103,6 +103,7 @@ The same palette also produces a full editor theme.
 | `antigravity` (`ag`) | `.json` | inside an extension |
 | `claude-code` (`claude`, `cc`) | `.json` | `~/.claude/themes/NAME.json` |
 | `ghostwriter` (`gw`) | `.json` | `~/.local/share/ghostwriter/themes/NAME.json` |
+| `obsidian` (`obs`) | `.css` | `VAULT/.obsidian/themes/NAME/theme.css` |
 
 ```console
 $ cscx convert kitty.conf --to neovim -o ~/.config/nvim/colors/mine.lua
