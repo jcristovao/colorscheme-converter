@@ -1,0 +1,53 @@
+# Runs the suite on every push and pull request, so a broken main is found
+# when it breaks rather than when a release tag refuses to publish.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - run: pip install ruff
+      - run: ruff check src tests
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      # --group needs pip 25.1 or newer.
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e . --group dev
+      - run: pytest -q
+
+  # The oldest Textual the `tui` extra promises to work with.
+  tui-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+      - run: pip install -e . 'textual==0.60.0' pytest pytest-asyncio
+      - run: pytest -q tests/test_tui.py
